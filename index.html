@@ -1,4 +1,4 @@
-<title>신경망 학습 퀘스트</title>
+<title>신경망 모델 구현하기</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -545,7 +545,7 @@ function renderHome(){
   </section>`).join("")}
   <div class="foot">
     <span>진행 상황은 이 기기에만 저장돼요.</span>
-    <button class="linkbtn" id="unl">${S.unlock?"레벨 잠금 다시 켜기":"선생님용: 모든 레벨 열기"}</button>
+    <span>2026 중앙여고 인공지능기초</span>
   </div>`;
   $("#nm").addEventListener("input",e=>{S.name=e.target.value.trim();save()});
   $$(".lv").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.i;if(unlocked(i))openLevel(i)}));
