@@ -532,7 +532,7 @@ function renderHome(){
   const tot=totStars();
   app.innerHTML=`
   <header class="hero">
-    <span class="eyebrow">실습 5 · 손으로 쓴 숫자 분류 모델 구현하기</span>
+    <span class="eyebrow">손으로 쓴 숫자 분류 모델 구현하기 (교과서 </span>
     <h1>신경망<br>학습 <em>퀘스트</em></h1>
     <p>코드를 직접 치지 않아도 괜찮아요. 블록을 채우고 문제를 풀면서 레벨을 깨면, 휴대폰 안에서 진짜 신경망이 숫자를 배워요.</p>
     <div class="me"><label for="nm">이름</label><input id="nm" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}" autocomplete="off"><span class="tot">★ ${tot} / ${MAXST()}</span></div>
@@ -644,7 +644,7 @@ function renderCert(){
   app.innerHTML=`
   <div class="lvhead"><button class="back" id="back" aria-label="레벨 지도로 돌아가기">←</button><div class="lvt"><span class="eyebrow">완주 카드</span><b>신경망 학습 퀘스트</b></div><span></span></div>
   <div class="cert">
-    <span class="eyebrow">실습 5 · 손으로 쓴 숫자 분류 모델</span>
+    <span class="eyebrow">손으로 쓴 숫자 분류 모델 (교과서 137p~)</span>
     <h2>신경망 학습<br>퀘스트 완주</h2>
     <div class="me" style="margin:0"><label for="nm2">이름</label><input id="nm2" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}"></div>
     <p style="margin:0">데이터 전처리부터 모델 설계, 학습, 평가, 예측까지 손글씨 숫자 분류 신경망을 직접 만들어 봤어요.</p>
