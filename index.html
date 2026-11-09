@@ -43,6 +43,9 @@ code,.mono{font-family:var(--f-mono)}
 
 /* Home */
 .hero{padding-block:28px 8px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.titlerow{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.rstbtn{flex:none;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);border-radius:99px;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:4px}
+.rstbtn:active{transform:scale(.97)}
 .hero h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,11vw,56px);line-height:1;letter-spacing:-.01em}
 .hero h1 em{font-style:normal;color:var(--accent)}
 .hero p{margin:0;color:var(--muted)}
@@ -533,7 +536,7 @@ function renderHome(){
   app.innerHTML=`
   <header class="hero">
     <span class="eyebrow">손으로 쓴 숫자 분류 모델 구현하기 (교과서 137p~) </span>
-    <h1>신경망<br>학습 <em>퀘스트</em></h1>
+    <div class="titlerow"><h1>신경망<br>학습 <em>퀘스트</em></h1><button class="rstbtn" id="rst">퀴즈 초기화</button></div>
     <p>코드를 직접 치지 않아도 괜찮아요. 블록을 채우고 문제를 풀면서 레벨을 깨면, 휴대폰 안에서 진짜 신경망이 숫자를 배워요.</p>
     <div class="me"><label for="nm">이름</label><input id="nm" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}" autocomplete="off"><span class="tot">★ ${tot} / ${MAXST()}</span></div>
   </header>
@@ -549,11 +552,25 @@ function renderHome(){
   </div>`;
   $("#nm").addEventListener("input",e=>{S.name=e.target.value.trim();save()});
   $$(".lv").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.i;if(unlocked(i))openLevel(i)}));
-  $("#unl").addEventListener("click",()=>{S.unlock=!S.unlock;save();renderHome()});
+  const u=$("#unl");if(u)u.addEventListener("click",()=>{S.unlock=!S.unlock;save();renderHome()});
+  $("#rst").addEventListener("click",askReset);
   const c=$("#cert");if(c)c.addEventListener("click",renderCert);
   window.scrollTo(0,0);
 }
 
+function askReset(){
+  const ov=document.createElement("div");ov.className="ov";
+  ov.innerHTML=`<div class="ovc" role="dialog" aria-label="퀘스트 초기화"><span class="eyebrow">퀴즈 초기화</span><h2>초기화할까요?</h2>
+    <p style="margin:0">단계 3부터 모은 별과 정확도 기록이 지워지고, 레벨 4부터 다시 시작해요. 단계 1·2 설명은 열린 채로 남아 있어서 언제든 다시 볼 수 있어요.</p>
+    <div class="btns"><button class="btn primary" id="rsy">초기화하기</button><button class="btn ghost" id="rsn">취소</button></div></div>`;
+  document.body.appendChild(ov);
+  $("#rsn").addEventListener("click",()=>ov.remove());
+  $("#rsy").addEventListener("click",()=>{ov.remove();resetQuest()});
+}
+function resetQuest(){
+  S.prog={};LEVELS.filter(L=>L.intro).forEach(L=>{S.prog[L.id]={stars:3}});
+  S.best=null;S.unlock=false;ML.model=null;ML.trainAcc=null;save();renderHome();
+}
 function openLevel(i){
   nav++;cur={i,L:LEVELS[i],idx:0,mistakes:0};
   app.innerHTML=`
