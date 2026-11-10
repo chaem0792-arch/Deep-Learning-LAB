@@ -1,1 +1,751 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>고양이 사진 CNN 퀘스트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: one phone-width column on graph paper; level map of 4 stages; sticky level header + fixed action bar (same system as 합성곱 신경망 퀘스트) */
+:root{
+  --paper:#EAEFF4; --grid:rgba(22,32,58,.06); --surface:#FFFFFF; --sunk:#F3F6F9;
+  --ink:#16203A; --muted:#5A6579; --line:#D2D9E2;
+  --accent:#EE6418; --accent-soft:#FFE6D5; --on-accent:#FFFFFF;
+  --ok:#0C8A79; --ok-soft:#D7F1EC; --bad:#D13A3A; --bad-soft:#FBE0E0; --star:#F2A900;
+  --neg:#2F6FD6; --neg-soft:#DCE8FB;
+  --code-bg:#1A2340; --code-ink:#E6EBF5; --code-dim:#8994AE;
+  --f-display:"Do Hyeon","IBM Plex Sans KR",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0E1424; --grid:rgba(232,237,246,.045); --surface:#172036; --sunk:#111a2d;
+  --ink:#E8EDF6; --muted:#9BA6BB; --line:#2B3651;
+  --accent:#FF8B3E; --accent-soft:#3B2515; --on-accent:#1B0E04;
+  --ok:#3CC6B1; --ok-soft:#10352F; --bad:#FF6E6E; --bad-soft:#3C1B1F; --star:#FFC233;
+  --neg:#6FA8FF; --neg-soft:#16284A;
+  --code-bg:#0A0F1D; --code-ink:#E6EBF5; --code-dim:#7D88A2;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0E1424; --grid:rgba(232,237,246,.045); --surface:#172036; --sunk:#111a2d;
+  --ink:#E8EDF6; --muted:#9BA6BB; --line:#2B3651;
+  --accent:#FF8B3E; --accent-soft:#3B2515; --on-accent:#1B0E04;
+  --ok:#3CC6B1; --ok-soft:#10352F; --bad:#FF6E6E; --bad-soft:#3C1B1F; --star:#FFC233;
+  --neg:#6FA8FF; --neg-soft:#16284A;
+  --code-bg:#0A0F1D; --code-ink:#E6EBF5; --code-dim:#7D88A2;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{background-color:var(--paper);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px;color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#app{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 120px}
+h1,h2,h3{text-wrap:balance;margin:0}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:500}
 
+/* Home */
+.hero{padding-block:28px 8px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.titlerow{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.resetbtn{flex:none;margin-top:4px;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 2px 0 var(--line)}
+.resetbtn:active{transform:translateY(2px);box-shadow:none}
+.hero h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,11vw,56px);line-height:1;letter-spacing:-.01em}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{margin:0;color:var(--muted)}
+.heroimg{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:var(--r);border:1px solid var(--line);display:block}
+.me{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-top:4px}
+.me label{font-size:13px;color:var(--muted);white-space:nowrap}
+.me input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-weight:700;color:var(--ink);padding:4px 0}
+.me .tot{font-family:var(--f-display);font-size:20px;color:var(--star);white-space:nowrap}
+.stage-g{margin-top:26px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.stage-g h3{font-family:var(--f-display);font-weight:400;font-size:22px;display:flex;gap:10px;align-items:baseline}
+.stage-g h3 small{font-family:var(--f-body);font-size:13px;color:var(--muted)}
+.lv{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;cursor:pointer;transition:transform .12s}
+.lv:active{transform:scale(.985)}
+.lv .num{width:54px;height:54px;border-radius:12px;display:grid;place-items:center;font-family:var(--f-display);font-size:28px;background:var(--sunk);color:var(--muted)}
+.lv.open .num{background:var(--accent);color:var(--on-accent)}
+.lv.done .num{background:var(--ok);color:var(--on-accent)}
+.lv .tt{min-width:0}
+.lv .tt b{display:block;font-size:17px}
+.lv .tt span{display:block;font-size:13px;color:var(--muted);line-height:1.4}
+.lv .st{font-size:15px;letter-spacing:1px;color:var(--line);white-space:nowrap}
+.lv .st .on{color:var(--star)}
+.lv.locked{opacity:.55;cursor:not-allowed}
+.lv.locked .num::after{content:"🔒";font-size:20px}
+.lv.locked .num span{display:none}
+.foot{margin-top:28px;display:grid;gap:10px;justify-items:center;color:var(--muted);font-size:13px;text-align:center}
+.certcta{margin-top:20px}
+
+/* Level */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.lvhead{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding-block:10px 8px;margin-inline:-4px}
+.back{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:20px;cursor:pointer}
+.lvt{min-width:0;line-height:1.25}
+.lvt b{display:block;font-family:var(--f-display);font-weight:400;font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.miss{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:4px 10px;white-space:nowrap}
+.miss.bump{animation:bump .4s}
+@keyframes bump{30%{transform:scale(1.18);color:var(--bad);border-color:var(--bad)}}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .35s}
+.stage{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding-top:18px}
+.stepno{margin:0;font-size:13px;color:var(--muted);font-family:var(--f-mono)}
+.q{font-size:20px;line-height:1.45;font-weight:700}
+.lead{margin:0;color:var(--muted)}
+.lead b{color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.card p{margin:0}
+.card.tip{background:var(--sunk)}
+.note{font-size:13px;color:var(--muted);margin:0}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+/* MCQ + fill */
+.opts{display:grid;gap:10px}
+.opt{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;cursor:pointer;line-height:1.45}
+.opt::before{content:"";flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;border:2px solid var(--line)}
+.opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.opt.right::before{border-color:var(--ok);background:var(--ok)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft);animation:shake .35s}
+.opt.wrong::before{border-color:var(--bad)}
+.opt:disabled{cursor:default}
+.opt:disabled:not(.right):not(.wrong){opacity:.6}
+.explain{border-radius:12px;padding:12px 14px;background:var(--ok-soft);border:1px solid var(--ok);line-height:1.55}
+.explain b:first-child{color:var(--ok)}
+.explain.warn{background:var(--accent-soft);border-color:var(--accent)}
+.explain.warn b:first-child{color:var(--accent)}
+.pairs{display:grid;gap:10px}
+.pairs .ln{display:grid;grid-template-columns:minmax(0,4.5em) 1fr;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px}
+.pairs .ln>span{font-weight:700;font-size:14px;color:var(--muted)}
+.blank{width:100%;min-height:2.6em;font-family:var(--f-body);font-size:14px;color:var(--ink);background:var(--sunk);border:1.5px dashed var(--line);border-radius:9px;text-align:left;padding:4px 10px;cursor:pointer}
+.blank.on{border-style:solid;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+.blank:not(.empty){border-style:solid;background:var(--accent-soft);border-color:var(--accent)}
+.blank.right{background:var(--ok-soft);border-color:var(--ok)}
+.blank.wrong{background:var(--bad-soft);border-color:var(--bad);animation:shake .35s}
+.hint{margin:0;font-size:13px;color:var(--muted)}
+.bank{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;font-size:14px;cursor:pointer;box-shadow:0 2px 0 var(--line);text-align:left}
+.chip:active{transform:translateY(2px);box-shadow:none}
+.chip:disabled{opacity:.45}
+
+/* Action bar + buttons */
+.act{position:fixed;left:0;right:0;bottom:0;z-index:6;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid var(--line);padding-top:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.act .in{max-width:528px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:14px 18px;font-weight:700;font-size:16px;cursor:pointer}
+.btn.primary{width:100%;background:var(--accent);color:var(--on-accent);box-shadow:0 3px 0 color-mix(in srgb,var(--accent) 60%,#000)}
+.btn.primary:active{transform:translateY(2px);box-shadow:none}
+.btn:disabled{background:var(--line);color:var(--muted);box-shadow:none;cursor:default}
+.btn.ghost{background:var(--surface);border:1.5px solid var(--line)}
+.btn.ghost:disabled{opacity:.5;background:var(--surface)}
+.btnrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.btnrow .btn{padding:12px 8px;font-size:14px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg3{grid-template-columns:repeat(3,1fr)}
+.seg button{border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 6px;font-size:13.5px;cursor:pointer;line-height:1.35}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);font-weight:700}
+
+/* Number grids */
+.gq{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 12px}
+.gp{display:grid;gap:4px;justify-items:center}
+.gp>.note{font-weight:600}
+.mg{display:grid;grid-template-columns:repeat(var(--c),minmax(0,1fr));gap:3px}
+.mc{width:var(--cs,40px);height:var(--cs,40px);display:grid;place-items:center;border-radius:7px;background:var(--surface);border:1.5px solid var(--line);font-family:var(--f-mono);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;padding:0;text-align:center;color:var(--ink);transition:background .2s,border-color .2s}
+.mc.sm{font-size:12.5px;border-radius:5px}
+.mc.neg{color:var(--neg);background:var(--neg-soft)}
+.mc.pos{color:var(--accent);background:var(--accent-soft)}
+.mc.q0{background:color-mix(in srgb,var(--accent) 12%,var(--surface))}
+.mc.q1{background:color-mix(in srgb,var(--ok) 14%,var(--surface))}
+.mc.q2{background:color-mix(in srgb,var(--star) 16%,var(--surface))}
+.mc.q3{background:color-mix(in srgb,var(--neg) 14%,var(--surface))}
+.mc.hl{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.mc.win{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.mc.cur{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.mc.empty{color:transparent}
+.mc.px{border-color:var(--line)}
+.mc.zeroed{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+button.mc{cursor:pointer}
+button.mc.wrong{background:var(--bad-soft);border-color:var(--bad);animation:shake .35s}
+button.mc.taken{opacity:.35}
+input.mc{background:var(--sunk);border-style:dashed;font:inherit;font-family:var(--f-mono);font-weight:700;font-size:16px}
+input.mc.wide{width:5.2em}
+input.mc:focus{outline:none;border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+input.mc.right{border-style:solid;border-color:var(--ok);background:var(--ok-soft)}
+input.mc.wrong{border-style:solid;border-color:var(--bad);background:var(--bad-soft);animation:shake .35s}
+.garr{font-family:var(--f-display);font-size:26px;color:var(--muted)}
+.calc{font-family:var(--f-mono);font-size:13px;background:var(--sunk);border-radius:10px;padding:10px;overflow-wrap:anywhere;line-height:1.6}
+.calc b{color:var(--accent);font-size:16px}
+.kgrid .mc{--cs:34px;font-size:13px}
+
+/* Photo + feature maps */
+.ph{display:grid;gap:10px}
+.ph canvas,.duo canvas,.tri canvas{width:100%;height:auto;display:block;border-radius:8px;background:#000;image-rendering:pixelated}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tri{display:grid;grid-template-columns:1.6fr 1fr .62fr;gap:8px;align-items:end}
+.duo figure,.tri figure{margin:0;display:grid;gap:4px;text-align:center;font-size:12.5px;color:var(--muted);line-height:1.35}
+.duo figure b,.tri figure b{color:var(--ink);font-size:13px}
+.mapkey{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.mapkey i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+.cropwrap{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;align-items:center}
+.cropwrap .mc{--cs:100%;aspect-ratio:1;height:auto;font-size:13px}
+.cropwrap .mg{width:100%}
+
+/* Pipeline */
+.pipe{display:grid;gap:6px}
+.pipe .row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:14px}
+.pipe .row b{font-size:14.5px}
+.pipe .row span{font-family:var(--f-mono);font-size:12.5px;color:var(--muted);white-space:nowrap}
+.pipe .row.c{border-left:5px solid var(--accent)}
+.pipe .row.a{border-left:5px solid var(--star)}
+.pipe .row.p{border-left:5px solid var(--ok)}
+.pipe .row.f{border-left:5px solid var(--neg)}
+.pipe .row.now{background:var(--accent-soft);border-color:var(--accent)}
+.pipe .dn{text-align:center;color:var(--muted);font-size:12px;line-height:1}
+
+/* Flatten */
+.flatrow{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px}
+.flatrow .mc{--cs:100%;aspect-ratio:1;height:auto;font-size:14px}
+.flatrow .mc.a{background:var(--accent-soft);border-color:var(--accent)}
+.flatrow .mc.b{background:var(--neg-soft);border-color:var(--neg)}
+.flatidx{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:4px;font-family:var(--f-mono);font-size:11px;color:var(--muted);text-align:center}
+
+/* FC network */
+svg.net{width:100%;height:auto;display:block}
+svg.net text{font-family:var(--f-mono);fill:var(--ink)}
+svg.net .lbl{font-family:var(--f-body);font-size:13px;font-weight:700}
+svg.net .sub{font-size:11px;fill:var(--muted)}
+svg.net line{transition:opacity .25s}
+svg.net .onode{cursor:pointer}
+.wlist{display:flex;flex-wrap:wrap;gap:6px}
+.wlist span{font-family:var(--f-mono);font-size:12.5px;background:var(--sunk);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
+.wlist span.p{background:var(--accent-soft);border-color:var(--accent)}
+.wlist span.n{background:var(--neg-soft);border-color:var(--neg)}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th,table.t td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:center;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+table.t th{font-family:var(--f-body);font-size:12.5px;color:var(--muted);font-weight:500}
+table.t td.z{color:var(--muted)}
+.bars{display:grid;gap:8px}
+.barrow{display:grid;grid-template-columns:5.2em 1fr 3.6em;gap:8px;align-items:center;font-size:14px}
+.barrow .tr{height:18px;background:var(--sunk);border-radius:5px;overflow:hidden}
+.barrow .tr i{display:block;height:100%;width:0;background:var(--muted);border-radius:5px;transition:width .8s}
+.barrow.top .tr i{background:var(--accent)}
+.barrow.top{font-weight:700}
+.barrow span:last-child{font-family:var(--f-mono);text-align:right}
+.verdict{display:flex;gap:14px;align-items:center}
+.verdict img{width:96px;height:64px;object-fit:cover;border-radius:8px;flex:none}
+.big{font-family:var(--f-display);font-size:40px;line-height:1;color:var(--accent)}
+svg.relu{width:100%;max-width:280px;height:auto;display:block;margin:0 auto}
+svg.relu text{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+
+/* Overlay + cert */
+.ov{position:fixed;inset:0;z-index:20;background:color-mix(in srgb,var(--ink) 55%,transparent);display:grid;place-items:center;padding:20px max(16px,env(safe-area-inset-right,0px)) 20px max(16px,env(safe-area-inset-left,0px))}
+.ovc{background:var(--surface);border-radius:20px;padding:26px 20px;width:100%;max-width:420px;display:grid;gap:14px;text-align:center;animation:pop .35s}
+@keyframes pop{from{transform:scale(.9);opacity:.4}}
+.ovc h2{font-family:var(--f-display);font-weight:400;font-size:34px}
+.stars{font-size:46px;letter-spacing:6px;color:var(--line)}
+.stars .on{color:var(--star);display:inline-block;animation:pop .4s backwards}
+.stars .on:nth-child(2){animation-delay:.12s}.stars .on:nth-child(3){animation-delay:.24s}
+.ovc .learned{background:var(--sunk);border-radius:12px;padding:12px;text-align:left;font-size:14px}
+.ovc .btns{display:grid;gap:8px}
+.cert{margin-top:24px;background:var(--surface);border:2px solid var(--ink);border-radius:18px;padding:22px 18px;display:grid;gap:14px}
+.cert h2{font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1.1}
+.cert .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cert .grid div{background:var(--sunk);border-radius:8px;padding:6px;text-align:center;font-size:12px}
+.cert .grid b{display:block;font-family:var(--f-display);font-weight:400;font-size:18px}
+@media (max-width:380px){.mc{--cs:34px;font-size:14px}.q{font-size:18px}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+const r1=x=>Math.round(x*10)/10;
+const sgn=v=>v<0?`(${v})`:`${v}`;
+const fmt=v=>String(v).replace("-","−");
+
+/* ---------- the photo ---------- */
+const IMG_SRC="data:image/jpeg;base64,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";
+const CROP={x:.3474,y:.1918,w:.3291,h:.4932}; /* 고양이 얼굴 부분 */
+const PW=150,PH=100; /* 계산용 흑백 사진 크기 */
+let PHOTO=null;
+const photoReady=new Promise(res=>{const im=new Image();im.onload=()=>{
+  const c=document.createElement("canvas");c.width=PW;c.height=PH;const x=c.getContext("2d");x.drawImage(im,0,0,PW,PH);
+  const d=x.getImageData(0,0,PW,PH).data,g=new Float32Array(PW*PH);
+  for(let i=0;i<PW*PH;i++)g[i]=(0.299*d[i*4]+0.587*d[i*4+1]+0.114*d[i*4+2])/255;
+  PHOTO={im,g,w:PW,h:PH};res(PHOTO)};im.src=IMG_SRC});
+
+/* ---------- the tiny worked example (6×6 face crop, brightness 0~9) ---------- */
+const G=[[6,7,5,3,3,5],[4,6,6,4,3,5],[5,2,8,2,2,2],[9,8,9,1,2,1],[9,8,8,7,2,0],[9,9,9,8,6,5]];
+const KV=[[1,0,-1],[1,0,-1],[1,0,-1]]; /* 세로 경계: 왼쪽이 밝고 오른쪽이 어두운 곳 */
+const KH=[[-1,-1,-1],[0,0,0],[1,1,1]]; /* 가로 경계: 위가 어둡고 아래가 밝은 곳 */
+const KL=[[-1,-1,-1],[-1,8,-1],[-1,-1,-1]]; /* 윤곽 */
+const conv=(A,K)=>{const k=K.length,n=A.length-k+1,o=[];for(let i=0;i<n;i++){o.push([]);for(let j=0;j<n;j++){let s=0;for(let a=0;a<k;a++)for(let b=0;b<k;b++)s+=A[i+a][j+b]*K[a][b];o[i].push(s)}}return o};
+const relu=A=>A.map(r=>r.map(v=>Math.max(0,v)));
+const pool=A=>{const o=[];for(let i=0;i+1<A.length;i+=2){const r=[];for(let j=0;j+1<A[0].length;j+=2)r.push(Math.max(A[i][j],A[i][j+1],A[i+1][j],A[i+1][j+1]));o.push(r)}return o};
+const CV=conv(G,KV),CH=conv(G,KH),RV=relu(CV),RH=relu(CH),PV=pool(RV),PHm=pool(RH);
+const FLAT=[...PV.flat(),...PHm.flat()];
+const CLASSES=[{n:"고양이",e:"🐱"},{n:"강아지",e:"🐶"},{n:"토끼",e:"🐰"}];
+/* 학습이 끝났다고 가정한 예시 가중치 (8개 입력 → 3개 출력 뉴런) */
+const W=[[0.1,0,0,0.1,0,-0.1,0.1,0],[0,0.1,0,0,0.1,0,-0.1,0],[0,0,0.1,-0.1,0,0.1,0,0.1]];
+const SC=W.map(w=>r1(w.reduce((s,v,i)=>s+v*FLAT[i],0)));
+const PROB=(()=>{const e=SC.map(Math.exp),t=e.reduce((a,b)=>a+b,0);return e.map(v=>v/t)})();
+
+/* ---------- photo convolution (real image) ---------- */
+function convImg(P,K){const k=K.length,w=P.w-k+1,h=P.h-k+1,o=new Float32Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){let s=0;for(let a=0;a<k;a++)for(let b=0;b<k;b++)s+=P.g[(y+a)*P.w+x+b]*K[a][b];o[y*w+x]=s}return{g:o,w,h}}
+const reluImg=M=>({g:M.g.map(v=>Math.max(0,v)),w:M.w,h:M.h});
+function poolImg(M){const w=Math.floor(M.w/2),h=Math.floor(M.h/2),o=new Float32Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=2*y*M.w+2*x;o[y*w+x]=Math.max(M.g[i],M.g[i+1],M.g[i+M.w],M.g[i+M.w+1])}return{g:o,w,h}}
+function scaleOf(M){const a=[...M.g].map(Math.abs).sort((p,q)=>p-q);return a[Math.floor(a.length*.985)]||1}
+const POSC=[255,139,62],NEGC=[90,150,255];
+function drawMap(cv,M,sc){cv.width=M.w;cv.height=M.h;const x=cv.getContext("2d"),id=x.createImageData(M.w,M.h);sc=sc||scaleOf(M);
+  for(let i=0;i<M.g.length;i++){const v=Math.min(1,Math.abs(M.g[i])/sc),c=M.g[i]>=0?POSC:NEGC;id.data[i*4]=c[0]*v;id.data[i*4+1]=c[1]*v;id.data[i*4+2]=c[2]*v;id.data[i*4+3]=255}
+  x.putImageData(id,0,0)}
+function drawGray(cv,P,bw,bh){bw=bw||P.w;bh=bh||P.h;cv.width=bw;cv.height=bh;const x=cv.getContext("2d");
+  if(bw===P.w){const id=x.createImageData(P.w,P.h);for(let i=0;i<P.g.length;i++){const v=P.g[i]*255;id.data[i*4]=id.data[i*4+1]=id.data[i*4+2]=v;id.data[i*4+3]=255}x.putImageData(id,0,0)}
+  else{const t=document.createElement("canvas");t.width=P.w;t.height=P.h;drawGray(t,P);x.imageSmoothingEnabled=true;x.drawImage(t,0,0,bw,bh)}}
+const PK={v:{K:KV,n:"세로 경계",d:"왼쪽은 밝고 오른쪽은 어두운 <b>세로 경계</b>를 찾아요. 고양이 얼굴의 양옆 윤곽과 눈 가장자리가 주황색으로 떠올라요."},
+  h:{K:KH,n:"가로 경계",d:"위는 어둡고 아래는 밝은 <b>가로 경계</b>를 찾아요. 눈 아래, 턱 아래처럼 가로로 이어지는 경계가 떠올라요."},
+  l:{K:KL,n:"윤곽",d:"가운데 칸이 주변과 얼마나 다른지 재서 <b>윤곽선(모서리)</b>을 찾아요. 수염, 눈, 귀 테두리가 또렷해져요."}};
+
+/* ---------- small renderers ---------- */
+function gridHTML(A,o={}){const cols=A[0].length;
+  return `<div class="mg" style="--c:${cols};${o.cs?`--cs:${o.cs}`:""}">${A.flat().map((v,i)=>{const r=Math.floor(i/cols),c=i%cols;
+    const cls=[o.sm?"sm":"",o.signed&&v<0?"neg":"",o.cls?o.cls(r,c,v,i):""].join(" ");
+    const sty=o.px?`style="background:rgb(${Math.round(v/9*255)},${Math.round(v/9*255)},${Math.round(v/9*255)});color:${v>=5?"#16203A":"#fff"}"`:"";
+    return `<${o.tag||"span"} class="mc ${o.px?"px":""} ${cls}" data-r="${r}" data-c="${c}" data-i="${i}" ${sty}>${o.hide&&o.hide(r,c,i)?"":fmt(v)}</${o.tag||"span"}>`}).join("")}</div>`}
+const kernelHTML=K=>gridHTML(K,{cls:(r,c,v)=>v>0?"pos":v<0?"neg":"",cs:"34px"});
+function pipeHTML(now){const rows=[["c","합성곱 층","커널로 특징 찾기","6×6 → 4×4 ×2"],["a","활성화 함수 ReLU","음수는 0으로","4×4 ×2"],["p","풀링 층","2×2에서 최댓값","→ 2×2 ×2"],["f","Flatten","한 줄로 펼치기","→ 8개"],["f","완전연결 층","뉴런으로 신호 전달","8 → 3"],["f","최종 분류","가장 큰 확률","고양이?"]];
+  return `<div class="pipe">${rows.map((r,i)=>`${i?`<div class="dn">▼</div>`:""}<div class="row ${r[0]} ${i===now?"now":""}"><div><b>${r[1]}</b> <span style="font-family:var(--f-body)">· ${r[2]}</span></div><span>${r[3]}</span></div>`).join("")}</div>`}
+
+/* ---------- saved progress (this device only) ---------- */
+const KEY="catcnn.v1";
+let S={name:"",prog:{}};
+try{const v=JSON.parse(localStorage.getItem(KEY)||"null");if(v)S=Object.assign(S,v)}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+/* =================== interactive steps =================== */
+/* L1 — photo as numbers */
+function mPhoto(box,api){
+  box.innerHTML=`<h2 class="q">컴퓨터에게 사진은 숫자 표예요</h2>
+  <p class="lead">사진을 아주 작은 칸(<b>픽셀</b>)으로 나누면, 칸마다 밝기를 숫자로 적을 수 있어요. 버튼을 눌러 컴퓨터가 보는 모습으로 바꿔 보세요.</p>
+  <div class="seg seg3" id="md"><button aria-pressed="true" data-m="c">컬러 사진</button><button aria-pressed="false" data-m="g">흑백</button><button aria-pressed="false" data-m="p">픽셀로 보기</button></div>
+  <div class="ph"><canvas id="pc" aria-label="고양이 사진"></canvas></div>
+  <p class="note" id="pn"></p>`;
+  const cv=$("#pc",box),pn=$("#pn",box);
+  photoReady.then(P=>{if(!api.alive())return;
+    const show=m=>{$$("#md button",box).forEach(b=>b.setAttribute("aria-pressed",b.dataset.m===m));
+      if(m==="c"){cv.width=480;cv.height=320;cv.getContext("2d").drawImage(P.im,0,0,480,320);pn.textContent="우리 눈에 보이는 컬러 사진이에요. 실제로는 칸마다 빨강·초록·파랑 세 가지 숫자가 들어 있어요."}
+      if(m==="g"){drawGray(cv,P);pn.textContent=`흑백으로 바꾸면 칸마다 숫자가 하나뿐이에요. 이 사진은 가로 ${P.w}칸 × 세로 ${P.h}칸, 숫자 ${(P.w*P.h).toLocaleString()}개예요.`}
+      if(m==="p"){drawGray(cv,P,30,20);pn.textContent="칸을 크게 키워 보면 사진이 밝기 숫자를 가진 네모들로 이루어진 게 보여요 (30×20칸)."}
+      api.done()};
+    $$("#md button",box).forEach(b=>b.addEventListener("click",()=>show(b.dataset.m)));show("c")});
+}
+function mCrop(box,api){
+  box.innerHTML=`<h2 class="q">고양이 얼굴을 6×6 숫자로 바꿨어요</h2>
+  <p class="lead">계산을 손으로 해 보려고 얼굴 부분(주황 네모)을 <b>6×6칸</b>으로 줄이고, 밝기를 <b>0(검정) ~ 9(흰색)</b> 숫자로 적었어요. 앞으로 이 숫자 표가 합성곱 신경망에 들어가요.</p>
+  <div class="card cropwrap"><canvas id="cc" style="width:100%;height:auto;border-radius:8px;display:block"></canvas>${gridHTML(G,{px:true})}</div>
+  <p class="note">왼쪽 아래의 흰 털은 9에 가깝고, 눈과 오른쪽 회색 털은 작은 수예요.</p>`;
+  photoReady.then(P=>{if(!api.alive())return;const cv=$("#cc",box);cv.width=480;cv.height=320;const x=cv.getContext("2d");x.drawImage(P.im,0,0,480,320);
+    x.strokeStyle="#FF8B3E";x.lineWidth=5;x.strokeRect(CROP.x*480,CROP.y*320,CROP.w*480,CROP.h*320);api.done()});
+}
+
+/* L2 — sliding window */
+function mSlide(box,api){
+  let key="v",pos=0;
+  box.innerHTML=`<h2 class="q">커널을 한 칸씩 옮기며 곱하고 더해요</h2>
+  <p class="lead">3×3 커널을 사진 숫자 위에 겹치고, 같은 자리끼리 곱해서 모두 더하면 특징 맵의 숫자 하나가 나와요. 한 칸씩 옮기면(스트라이드 1) 6×6 사진에서 <b>4×4 특징 맵</b>이 만들어져요.</p>
+  <div class="seg" id="ks"><button data-k="v" aria-pressed="true">세로 경계 커널</button><button data-k="h" aria-pressed="false">가로 경계 커널</button></div>
+  <div class="card"><div class="gq" id="sv"></div></div>
+  <div class="calc" id="cl"></div>
+  <div class="btnrow"><button class="btn ghost" id="pv">◀ 이전</button><button class="btn ghost" id="nx">다음 ▶</button><button class="btn ghost" id="al">끝까지</button></div>`;
+  const draw=()=>{const K=key==="v"?KV:KH,O=conv(G,K),r=Math.floor(pos/4),c=pos%4;
+    $("#sv",box).innerHTML=`<div class="gp"><span class="note">사진 (6×6)</span>${gridHTML(G,{cs:"32px",sm:true,cls:(i,j)=>i>=r&&i<r+3&&j>=c&&j<c+3?"win":""})}</div><span class="garr">×</span>
+      <div class="gp"><span class="note">커널</span>${kernelHTML(K)}</div><span class="garr">=</span>
+      <div class="gp"><span class="note">특징 맵 (4×4)</span>${gridHTML(O,{cs:"36px",signed:true,cls:(i,j,v,k)=>k===pos?"cur":k>pos?"empty":""})}</div>`;
+    const terms=[];for(let a=0;a<3;a++)for(let b=0;b<3;b++)terms.push(`${G[r+a][c+b]}×${sgn(K[a][b])}`);
+    $("#cl",box).innerHTML=`${terms.join(" + ")} = <b>${fmt(O[r][c])}</b>`;
+    $("#pv",box).disabled=pos===0;$("#nx",box).disabled=pos===15;$("#al",box).disabled=pos===15;
+    if(pos===15)api.done()};
+  $$("#ks button",box).forEach(b=>b.addEventListener("click",()=>{key=b.dataset.k;$$("#ks button",box).forEach(x=>x.setAttribute("aria-pressed",x===b));pos=0;draw()}));
+  $("#pv",box).addEventListener("click",()=>{pos=Math.max(0,pos-1);draw()});
+  $("#nx",box).addEventListener("click",()=>{pos=Math.min(15,pos+1);draw()});
+  $("#al",box).addEventListener("click",()=>{pos=15;draw()});
+  draw();api.setGo("커널을 끝까지 옮겨 보세요",false);
+}
+/* generic: type answers into number cells, with region highlight */
+function runRounds(box,api,rounds){
+  let k=0;
+  const show=()=>{const R=rounds[k];
+    box.innerHTML=`<h2 class="q">${R.q}</h2>${R.lead?`<p class="lead">${R.lead}</p>`:""}${rounds.length>1?`<p class="stepno">문제 ${k+1} / ${rounds.length}</p>`:""}
+      <div class="card"><div class="gq">${R.panels}</div></div><div class="explain" hidden></div>`;
+    const ins=$$("input.mc",box);let solved=false;
+    const hl=i=>{$$(".mc.hl",box).forEach(e=>e.classList.remove("hl"));if(R.region)R.region(i).forEach(s=>$$(s,box).forEach(e=>e.classList.add("hl")))};
+    const upd=()=>{if(solved)return;const full=ins.every(x=>x.value.trim()!=="");api.setGo(full?"확인하기":"빈칸을 모두 채워 주세요",full,check)};
+    ins.forEach((x,i)=>{x.addEventListener("focus",()=>hl(i));x.addEventListener("input",()=>{x.value=x.value.replace(/[^0-9.\-−]/g,"");x.classList.remove("wrong");upd()});
+      x.addEventListener("keydown",e=>{if(e.key==="Enter"){const nx=ins.find((y,j)=>j>i&&!y.value);if(nx)nx.focus();else if(ins.every(y=>y.value))check()}})});
+    function check(){
+      const wrong=ins.filter((x,i)=>Math.abs(parseFloat(x.value.replace("−","-"))-R.ans[i])>1e-6||isNaN(parseFloat(x.value)));
+      if(!wrong.length){solved=true;ins.forEach(x=>{x.classList.add("right");x.readOnly=true});
+        const ex=$(".explain",box);ex.innerHTML=`<b>정답!</b> ${R.ex}`;ex.hidden=false;ex.scrollIntoView({block:"nearest",behavior:"smooth"});
+        if(k<rounds.length-1)api.setGo("다음 문제",true,()=>{k++;show()});else api.done()}
+      else{api.mistake();wrong.forEach(x=>{x.classList.remove("wrong");void x.offsetWidth;x.classList.add("wrong")});
+        const ex=$(".explain",box);ex.className="explain warn";ex.innerHTML=`<b>다시 해 봐요.</b> ${R.hint||"표시된 칸을 다시 계산해 보세요."}`;ex.hidden=false}}
+    upd();setTimeout(()=>{if(ins[0]&&api.alive())ins[0].focus({preventScroll:true})},50)};
+  show();
+}
+function mConvCalc(box,api){
+  const mk=(K,kn,r,c)=>{const v=conv(G,K)[r][c],terms=[];for(let a=0;a<3;a++)for(let b=0;b<3;b++)terms.push(`${G[r+a][c+b]}×${sgn(K[a][b])}`);
+    return{q:`${kn} 커널을 주황 네모 자리에 겹쳤어요. 특징 맵 값은?`,lead:"같은 자리끼리 곱한 다음 9개를 모두 더하세요. 음수는 앞에 - 를 붙여 적어요.",
+      panels:`<div class="gp"><span class="note">사진 (6×6)</span>${gridHTML(G,{cs:"32px",sm:true,cls:(i,j)=>i>=r&&i<r+3&&j>=c&&j<c+3?"win":""})}</div><span class="garr">×</span>
+        <div class="gp"><span class="note">${kn} 커널</span>${kernelHTML(K)}</div><span class="garr">=</span>
+        <div class="gp"><span class="note">값</span><input class="mc wide" inputmode="text" maxlength="4" autocomplete="off" aria-label="합성곱 결과"></div>`,
+      ans:[v],ex:`${terms.join(" + ")} = <b>${v}</b>. ${v<0?"음수가 나왔어요. 이 자리에는 커널이 찾는 무늬와 반대 무늬가 있다는 뜻이에요.":"양수가 크게 나왔어요. 커널이 찾는 무늬가 이 자리에 있다는 뜻이에요."}`,
+      hint:"커널이 0인 칸은 계산에서 빼도 돼요. 1인 칸의 합에서 -1인 칸의 합을 빼 보세요."}};
+  runRounds(box,api,[mk(KV,"세로 경계",0,0),mk(KH,"가로 경계",1,0)]);
+}
+/* real-photo feature maps */
+function mFeat(box,api){
+  box.innerHTML=`<h2 class="q">진짜 사진에 커널을 대 보면?</h2>
+  <p class="lead">같은 계산을 ${PW}×${PH} 흑백 사진 전체에 해 봤어요. 커널을 바꾸면 찾아내는 특징이 달라져요.</p>
+  <div class="seg seg3" id="ks">${Object.entries(PK).map(([k,v],i)=>`<button data-k="${k}" aria-pressed="${i===0}">${v.n}</button>`).join("")}</div>
+  <div class="card" style="display:grid;gap:12px"><div class="gq" id="kk"></div>
+  <div class="duo"><figure><canvas id="c0"></canvas><figcaption><b>입력</b> 흑백 사진</figcaption></figure><figure><canvas id="c1"></canvas><figcaption><b>출력</b> 특징 맵</figcaption></figure></div>
+  <div class="mapkey"><span><i style="background:rgb(255,139,62)"></i>양수: 무늬를 찾은 곳</span><span><i style="background:rgb(90,150,255)"></i>음수: 반대 무늬</span><span><i style="background:#000;border:1px solid var(--line)"></i>0 근처: 무늬 없음</span></div></div>
+  <p class="lead" id="kd"></p>`;
+  photoReady.then(P=>{if(!api.alive())return;drawGray($("#c0",box),P);
+    const show=k=>{$$("#ks button",box).forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===k));$("#kk",box).innerHTML=`<div class="gp"><span class="note">${PK[k].n} 커널</span>${kernelHTML(PK[k].K)}</div>`;
+      drawMap($("#c1",box),convImg(P,PK[k].K));$("#kd",box).innerHTML=PK[k].d};
+    $$("#ks button",box).forEach(b=>b.addEventListener("click",()=>show(b.dataset.k)));show("v");api.done()});
+}
+
+/* L3 — ReLU */
+function mReluClick(box,api){
+  const zero=new Set(),need=CV.flat().map((v,i)=>v<0?i:-1).filter(i=>i>=0);
+  box.innerHTML=`<h2 class="q">ReLU를 직접 적용해 보세요</h2>
+  <p class="lead">세로 경계 커널로 만든 특징 맵이에요. ReLU 규칙대로 <b>0으로 바뀌어야 하는 칸을 모두</b> 눌러 주세요.</p>
+  <div class="card"><div class="gq"><div class="gp"><span class="note">합성곱 결과</span>${gridHTML(CV,{tag:"button",signed:true,cs:"48px"})}</div></div></div>
+  <p class="note" id="rc">남은 칸: ${need.length}개</p><div class="explain" hidden></div>`;
+  api.setGo("바뀌어야 하는 칸을 모두 눌러 주세요",false);
+  $$("button.mc",box).forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.i,v=CV.flat()[i];if(zero.has(i))return;
+    if(v<0){zero.add(i);b.textContent="0";b.classList.remove("neg");b.classList.add("zeroed");b.setAttribute("aria-label",`${v}에서 0으로`)}
+    else{api.mistake();b.classList.remove("wrong");void b.offsetWidth;b.classList.add("wrong");const ex=$(".explain",box);ex.className="explain warn";ex.innerHTML=`<b>그 칸은 그대로예요.</b> ${v}은(는) ${v===0?"이미 0이라":"양수라"} ReLU를 지나도 ${v} 그대로 남아요.`;ex.hidden=false}
+    $("#rc",box).textContent=`남은 칸: ${need.length-zero.size}개`;
+    if(zero.size===need.length){$$("button.mc",box).forEach(x=>x.disabled=true);const ex=$(".explain",box);ex.className="explain";
+      ex.innerHTML=`<b>완성!</b> 음수 ${need.length}칸이 0이 되고 양수는 그대로 남았어요. 가로 경계 특징 맵도 똑같이 바뀌어요.<div class="gq" style="margin-top:10px"><div class="gp"><span class="note">가로 경계 합성곱</span>${gridHTML(CH,{signed:true,cs:"32px",sm:true})}</div><span class="garr">→</span><div class="gp"><span class="note">ReLU 후</span>${gridHTML(RH,{cs:"32px",sm:true})}</div></div>`;
+      ex.hidden=false;ex.scrollIntoView({block:"nearest",behavior:"smooth"});api.done()}}));
+}
+function mReluPhoto(box,api){
+  box.innerHTML=`<h2 class="q">사진의 특징 맵에 ReLU를 적용하면</h2>
+  <p class="lead">파란색(음수)이 모두 검정(0)으로 바뀌고, 무늬를 찾은 주황색 부분만 다음 층으로 넘어가요.</p>
+  <div class="seg seg3" id="ks">${Object.entries(PK).map(([k,v],i)=>`<button data-k="${k}" aria-pressed="${i===0}">${v.n}</button>`).join("")}</div>
+  <div class="card"><div class="duo"><figure><canvas id="c0"></canvas><figcaption><b>합성곱 결과</b> 양수 + 음수</figcaption></figure><figure><canvas id="c1"></canvas><figcaption><b>ReLU 통과 후</b> 0 이상만</figcaption></figure></div></div>`;
+  photoReady.then(P=>{if(!api.alive())return;
+    const show=k=>{$$("#ks button",box).forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===k));const M=convImg(P,PK[k].K),sc=scaleOf(M);drawMap($("#c0",box),M,sc);drawMap($("#c1",box),reluImg(M),sc)};
+    $$("#ks button",box).forEach(b=>b.addEventListener("click",()=>show(b.dataset.k)));show("v");api.done()});
+}
+
+/* L4 — pooling */
+function mPoolCalc(box,api){
+  const q=(r,c)=>"q"+(Math.floor(r/2)*2+Math.floor(c/2));
+  const mk=(A,P,kn)=>({q:`${kn} 특징 맵에 2×2 최대 풀링을 해 보세요`,lead:"같은 색 2×2 구역마다 <b>가장 큰 값 하나</b>만 골라 적어요.",
+    panels:`<div class="gp"><span class="note">ReLU 후 (4×4)</span>${gridHTML(A,{cs:"40px",cls:(r,c)=>q(r,c)+` z${q(r,c)}`})}</div><span class="garr">→</span>
+      <div class="gp"><span class="note">풀링 후 (2×2)</span><div class="mg" style="--c:2;--cs:48px">${[0,1,2,3].map(i=>`<input class="mc q${i}" inputmode="numeric" maxlength="3" autocomplete="off" aria-label="풀링 ${i+1}번 칸">`).join("")}</div></div>`,
+    region:i=>[`.zq${i}`],
+    ans:P.flat(),ex:`구역별 최댓값은 ${P.flat().join(", ")}. 숫자 16개가 4개로 줄었지만 <b>가장 강한 특징</b>은 그대로 남았어요.`,hint:"빨간 테두리 칸은 그 구역의 최댓값이 아니에요."});
+  runRounds(box,api,[mk(RV,PV,"세로 경계"),mk(RH,PHm,"가로 경계")]);
+}
+function mPoolPhoto(box,api){
+  box.innerHTML=`<h2 class="q">풀링을 하면 특징 맵이 작아져요</h2>
+  <p class="lead">2×2 최대 풀링을 할 때마다 가로·세로가 절반이 돼요. 칸 수는 1/4로 줄지만 고양이 얼굴의 윤곽은 여전히 알아볼 수 있어요.</p>
+  <div class="seg seg3" id="ks">${Object.entries(PK).map(([k,v],i)=>`<button data-k="${k}" aria-pressed="${i===0}">${v.n}</button>`).join("")}</div>
+  <div class="card"><div class="tri"><figure><canvas id="c0"></canvas><figcaption id="f0"></figcaption></figure><figure><canvas id="c1"></canvas><figcaption id="f1"></figcaption></figure><figure><canvas id="c2"></canvas><figcaption id="f2"></figcaption></figure></div></div>
+  <p class="note">계산할 숫자가 줄어서 빨라지고, 고양이가 사진에서 조금 옆으로 움직여도 비슷한 결과가 나와요.</p>`;
+  photoReady.then(P=>{if(!api.alive())return;
+    const show=k=>{$$("#ks button",box).forEach(b=>b.setAttribute("aria-pressed",b.dataset.k===k));const M=reluImg(convImg(P,PK[k].K)),sc=scaleOf(M),A=poolImg(M),B=poolImg(A);
+      [[M,"ReLU 후"],[A,"풀링 1번"],[B,"풀링 2번"]].forEach(([m,t],i)=>{drawMap($("#c"+i,box),m,sc);$("#f"+i,box).innerHTML=`<b>${t}</b><br>${m.w}×${m.h}`})};
+    $$("#ks button",box).forEach(b=>b.addEventListener("click",()=>show(b.dataset.k)));show("v");api.done()});
+}
+
+/* L5 — flatten, FC, classify */
+function mFlatten(box,api){
+  const src=[...PV.flat().map((v,i)=>({v,m:"a",i})),...PHm.flat().map((v,i)=>({v,m:"b",i}))];let n=0;
+  box.innerHTML=`<h2 class="q">두 특징 맵을 한 줄로 펼쳐요 (Flatten)</h2>
+  <p class="lead">완전연결 층은 숫자를 <b>한 줄</b>로만 받아요. <b>세로 경계 맵</b>부터, 각 맵은 <b>윗줄 왼쪽 → 오른쪽, 그다음 아랫줄</b> 순서로 칸을 눌러 줄에 넣어 보세요.</p>
+  <div class="card" style="display:grid;gap:14px"><div class="gq">
+    <div class="gp"><span class="note">세로 경계 (2×2)</span><div class="mg" style="--c:2;--cs:52px">${PV.flat().map((v,i)=>`<button class="mc pos" data-k="${i}">${v}</button>`).join("")}</div></div>
+    <div class="gp"><span class="note">가로 경계 (2×2)</span><div class="mg" style="--c:2;--cs:52px">${PHm.flat().map((v,i)=>`<button class="mc neg" style="color:var(--ink)" data-k="${4+i}">${v}</button>`).join("")}</div></div></div>
+    <div><div class="flatrow" id="fr">${src.map(()=>`<span class="mc empty">·</span>`).join("")}</div><div class="flatidx">${src.map((_,i)=>`<span>${i+1}</span>`).join("")}</div></div></div>
+  <div class="explain" hidden></div>`;
+  api.setGo("칸을 순서대로 눌러 주세요",false);
+  const slots=$$("#fr .mc",box);
+  $$("button.mc",box).forEach(b=>b.addEventListener("click",()=>{const k=+b.dataset.k;if(b.classList.contains("taken"))return;
+    if(k===n){b.classList.add("taken");b.disabled=true;const s=slots[n];s.textContent=src[n].v;s.classList.remove("empty");s.classList.add(src[n].m);n++;
+      if(n===8){const ex=$(".explain",box);ex.className="explain";ex.innerHTML=`<b>완성!</b> 2×2 맵 2장(숫자 8개)이 <code>[${FLAT.join(", ")}]</code> 한 줄이 됐어요. 숫자 값은 그대로이고 <b>모양만</b> 바뀌었어요.`;ex.hidden=false;api.done()}}
+    else{api.mistake();b.classList.remove("wrong");void b.offsetWidth;b.classList.add("wrong");const ex=$(".explain",box);ex.className="explain warn";ex.innerHTML=`<b>순서를 확인해요.</b> ${n<4?"세로 경계 맵":"가로 경계 맵"}의 ${["윗줄 왼쪽","윗줄 오른쪽","아랫줄 왼쪽","아랫줄 오른쪽"][n%4]} 칸 차례예요.`;ex.hidden=false}}));
+}
+function netSVG(){
+  const iy=i=>26+i*34,oy=o=>62+o*90,IX=62,OX=244;let lines="";
+  W.forEach((w,o)=>w.forEach((v,i)=>{const col=v>0?"var(--accent)":v<0?"var(--neg)":"var(--line)";
+    lines+=`<line data-o="${o}" data-i="${i}" x1="${IX+14}" y1="${iy(i)}" x2="${OX-22}" y2="${oy(o)}" stroke="${col}" stroke-width="${v?3:1}" ${v?"":'stroke-dasharray="3 4"'} />`}));
+  const ins=FLAT.map((v,i)=>`<text class="sub" x="${IX-26}" y="${iy(i)+4}" text-anchor="end">x${i+1}</text><circle cx="${IX}" cy="${iy(i)}" r="14" fill="${i<4?"var(--accent-soft)":"var(--neg-soft)"}" stroke="${i<4?"var(--accent)":"var(--neg)"}" stroke-width="1.5"/><text x="${IX}" y="${iy(i)+4}" text-anchor="middle" font-size="12" font-weight="600">${v}</text>`).join("");
+  const outs=CLASSES.map((c,o)=>`<g class="onode" data-o="${o}" tabindex="0" role="button" aria-label="${c.n} 뉴런 가중치 보기"><circle id="on${o}" cx="${OX}" cy="${oy(o)}" r="22" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/><text x="${OX}" y="${oy(o)+6}" text-anchor="middle" font-size="18">${c.e}</text>
+    <text class="lbl" x="${OX+30}" y="${oy(o)-3}">${c.n}</text><text id="os${o}" x="${OX+30}" y="${oy(o)+15}" font-size="13" font-weight="600">?</text></g>`).join("");
+  return `<svg class="net" viewBox="0 0 350 300" role="img" aria-label="입력 8개가 출력 뉴런 3개에 모두 연결된 완전연결 층">${lines}<g id="pulses"></g>${ins}${outs}
+    <text class="sub" x="${IX}" y="298" text-anchor="middle">입력 (Flatten 8개)</text><text class="sub" x="${OX}" y="298" text-anchor="middle">출력 뉴런 3개</text></svg>`;
+}
+function mFC(box,api){
+  box.innerHTML=`<h2 class="q">완전연결 층: 모든 입력이 모든 뉴런과 연결돼요</h2>
+  <p class="lead">펼친 숫자 8개가 각 출력 뉴런으로 신호를 보내요. 선마다 <b>가중치</b>가 있어서, 신호에 가중치를 곱해 더한 값이 그 뉴런의 <b>점수</b>가 돼요.</p>
+  <div class="card" style="display:grid;gap:10px">${netSVG()}
+    <div class="mapkey"><span><i style="background:var(--accent)"></i>양수 가중치: 점수를 올림</span><span><i style="background:var(--neg)"></i>음수 가중치: 점수를 내림</span><span><i style="background:var(--line)"></i>0: 영향 없음</span></div></div>
+  <button class="btn ghost" id="fire" style="width:100%">⚡ 신호 보내기</button>
+  <div class="wlist" id="wl"></div>
+  <p class="note">출력 뉴런(🐱🐶🐰)을 누르면 그 뉴런으로 들어가는 가중치만 볼 수 있어요. 여기 가중치는 학습이 이미 끝났다고 가정한 예시 값이에요.</p>`;
+  const svg=$("svg.net",box);let sel=-1,fired=false;
+  const focus=o=>{sel=sel===o?-1:o;$$("line",svg).forEach(l=>l.style.opacity=sel<0||+l.dataset.o===sel?1:.12);
+    $("#wl",box).innerHTML=sel<0?"":`<span style="font-family:var(--f-body)"><b>${CLASSES[sel].n}</b> 뉴런의 가중치</span>`+W[sel].map((w,i)=>`<span class="${w>0?"p":w<0?"n":""}">x${i+1} × ${sgn(w)}</span>`).join("")};
+  $$(".onode",svg).forEach(g=>{g.addEventListener("click",()=>focus(+g.dataset.o));g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();focus(+g.dataset.o)}})});
+  $("#fire",box).addEventListener("click",()=>{const btn=$("#fire",box);btn.disabled=true;const pg=$("#pulses",svg);pg.innerHTML="";
+    const ls=$$("line",svg).filter(l=>W[+l.dataset.o][+l.dataset.i]!==0&&(sel<0||+l.dataset.o===sel));
+    const dots=ls.map(l=>{const c=document.createElementNS("http://www.w3.org/2000/svg","circle");c.setAttribute("r","5");c.setAttribute("fill",l.getAttribute("stroke"));pg.appendChild(c);return{c,l}});
+    const t0=performance.now(),D=1100;
+    const step=t=>{if(!api.alive())return;const p=Math.min(1,(t-t0)/D),e=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
+      dots.forEach(({c,l})=>{const x1=+l.getAttribute("x1"),y1=+l.getAttribute("y1"),x2=+l.getAttribute("x2"),y2=+l.getAttribute("y2");c.setAttribute("cx",x1+(x2-x1)*e);c.setAttribute("cy",y1+(y2-y1)*e)});
+      if(p<1)requestAnimationFrame(step);else{pg.innerHTML="";
+        CLASSES.forEach((c,o)=>{$("#os"+o,svg).textContent=`점수 ${SC[o]}`;$("#on"+o,svg).setAttribute("fill",o===0?"var(--accent-soft)":"var(--sunk)")});
+        btn.disabled=false;btn.textContent="⚡ 다시 보내기";if(!fired){fired=true;api.done()}}};
+    requestAnimationFrame(step)});
+  api.setGo("신호를 보내 보세요",false);
+}
+function mScore(box,api){
+  const terms=FLAT.map((v,i)=>`${v}×${sgn(W[0][i])}`);
+  box.innerHTML=`<h2 class="q">고양이 뉴런의 점수를 직접 계산해요</h2>
+  <p class="lead">입력 × 가중치를 8개 모두 더하세요. 가중치가 0인 칸은 0이라서 건너뛰어도 돼요.</p>
+  <div class="card" style="overflow-x:auto"><table class="t"><thead><tr><th></th>${FLAT.map((_,i)=>`<th>x${i+1}</th>`).join("")}</tr></thead>
+    <tbody><tr><th>입력</th>${FLAT.map(v=>`<td>${v}</td>`).join("")}</tr><tr><th>가중치</th>${W[0].map(w=>`<td class="${w?"":"z"}" style="${w>0?"color:var(--accent)":w<0?"color:var(--neg)":""}">${fmt(w)}</td>`).join("")}</tr></tbody></table></div>
+  <div class="card" style="display:flex;gap:12px;align-items:center;justify-content:center"><span style="font-size:22px">🐱</span><b>고양이 점수 =</b><input class="mc wide" inputmode="decimal" maxlength="5" autocomplete="off" aria-label="고양이 점수"></div>
+  <div class="explain" hidden></div>`;
+  const x=$("input.mc",box);let solved=false;
+  const check=()=>{const v=parseFloat(x.value.replace("−","-"));
+    if(Math.abs(v-SC[0])<1e-6){solved=true;x.classList.add("right");x.readOnly=true;const ex=$(".explain",box);ex.className="explain";
+      ex.innerHTML=`<b>정답!</b> ${terms.filter((_,i)=>W[0][i]).join(" + ")} = <b>${SC[0]}</b>. 같은 방법으로 강아지 점수는 ${SC[1]}, 토끼 점수는 ${SC[2]}이에요.`;ex.hidden=false;api.done()}
+    else{api.mistake();x.classList.remove("wrong");void x.offsetWidth;x.classList.add("wrong");const ex=$(".explain",box);ex.className="explain warn";ex.innerHTML=`<b>다시 해 봐요.</b> 가중치가 0이 아닌 칸은 x1, x4, x6, x7이에요. x6의 가중치는 음수라서 빼야 해요.`;ex.hidden=false}};
+  x.addEventListener("input",()=>{x.value=x.value.replace(/[^0-9.\-−]/g,"");x.classList.remove("wrong");if(!solved)api.setGo(x.value?"확인하기":"점수를 적어 주세요",!!x.value,check)});
+  x.addEventListener("keydown",e=>{if(e.key==="Enter"&&x.value&&!solved)check()});
+  api.setGo("점수를 적어 주세요",false);
+}
+function mResult(box,api){
+  const top=PROB.indexOf(Math.max(...PROB));
+  box.innerHTML=`<h2 class="q">점수를 확률로 바꿔 최종 분류해요</h2>
+  <p class="lead">마지막에는 <b>소프트맥스</b> 함수가 점수들을 합이 100%인 확률로 바꿔요. 점수가 클수록 확률도 커지고, <b>확률이 가장 큰 것</b>이 최종 답이에요.</p>
+  <div class="card" style="display:grid;gap:12px"><div class="bars">${CLASSES.map((c,o)=>`<div class="barrow ${o===top?"top":""}"><span>${c.e} ${c.n}</span><span class="tr"><i data-w="${(PROB[o]*100).toFixed(1)}"></i></span><span>${(PROB[o]*100).toFixed(1)}%</span></div>`).join("")}</div>
+    <p class="note">점수 ${SC.map((s,o)=>`${CLASSES[o].n} ${s}`).join(" · ")}</p></div>
+  <div class="card verdict"><img src="${IMG_SRC}" alt="고양이 사진"><div><span class="note">최종 분류</span><div class="big">${CLASSES[top].e} ${CLASSES[top].n}</div></div></div>
+  ${pipeHTML(5)}
+  <div class="card tip"><p class="note">실제 합성곱 신경망은 훨씬 큰 사진, 수십~수백 개의 커널, 여러 번 반복되는 합성곱·풀링 층, 은닉층이 있는 완전연결 층을 사용해요. 커널과 가중치는 사람이 정하지 않고 <b>학습</b>으로 찾아요. 이 체험은 흐름을 보기 위해 아주 작게 줄인 모형이에요.</p></div>`;
+  requestAnimationFrame(()=>requestAnimationFrame(()=>$$(".barrow i",box).forEach(i=>i.style.width=i.dataset.w+"%")));
+  api.done();
+}
+
+/* =================== levels =================== */
+const LEVELS=[
+{id:1,stage:"사진 준비",title:"사진을 숫자로",goal:"컴퓨터가 고양이 사진을 보는 방법",learned:"사진은 픽셀마다 밝기 숫자가 적힌 표예요. 흑백 사진은 숫자 표 1장, 컬러 사진은 빨강·초록·파랑 3장(채널)이에요.",steps:[
+  {type:"mount",mount:mPhoto},{type:"mount",mount:mCrop},
+  {type:"mcq",q:"6×6 숫자 표에서 고양이 <b>눈동자처럼 어두운 칸</b>에는 어떤 숫자가 들어 있을까요?",opts:["0에 가까운 작은 수","9에 가까운 큰 수","항상 5","눈동자는 숫자로 바꿀 수 없다"],a:0,ex:"이 표는 0이 검정, 9가 흰색이에요. 어두운 눈동자와 회색 털은 작은 수, 흰 털은 큰 수가 돼요."},
+  {type:"mcq",q:"컬러 사진을 숫자로 바꾸면 어떻게 될까요?",opts:["빨강·초록·파랑 세 장의 숫자 표(채널)가 생긴다","숫자 표가 한 장만 생긴다","색깔 이름이 글자로 저장된다","컬러 사진은 신경망에 넣을 수 없다"],a:0,ex:"컬러 사진은 픽셀마다 빨강(R)·초록(G)·파랑(B) 밝기가 있어서 숫자 표가 3장(채널 3개)이에요. 이 체험에서는 계산을 쉽게 하려고 흑백(채널 1개)으로 바꿨어요."}]},
+{id:2,stage:"특징 추출",title:"합성곱 층과 커널",goal:"커널로 곱하고 더해 특징 맵 만들기",learned:"커널은 특정 무늬를 찾는 작은 가중치 표예요. 커널을 한 칸씩 옮기며 곱하고 더하면 특징 맵이 생기고, 커널이 다르면 찾는 특징도 달라요.",steps:[
+  {type:"info",title:"커널은 무늬를 찾는 돋보기",html:`<p class="lead">합성곱 층에는 <b>커널</b>(필터)이라는 작은 숫자 표가 있어요. 커널의 숫자는 <b>가중치</b>이고, 숫자가 놓인 모양이 곧 <b>찾고 싶은 무늬</b>예요.</p>
+    <div class="card"><div class="gq"><div class="gp"><span class="note">세로 경계 커널</span>${kernelHTML(KV)}</div><div class="gp"><span class="note">가로 경계 커널</span>${kernelHTML(KH)}</div></div></div>
+    <p class="lead">세로 경계 커널은 왼쪽 열이 +1, 오른쪽 열이 −1이에요. 그래서 <b>왼쪽이 밝고 오른쪽이 어두운 곳</b>에 겹치면 큰 양수, 반대면 음수, 밝기가 고른 곳이면 0 근처가 나와요.</p>${pipeHTML(0)}`},
+  {type:"mount",mount:mSlide},{type:"mount",mount:mConvCalc},{type:"mount",mount:mFeat},
+  {type:"mcq",q:"합성곱 층에서 <b>커널</b>이 하는 일로 가장 알맞은 것은?",opts:["사진에서 특정 무늬(특징)가 어디에 있는지 찾아내는 가중치 묶음","사진의 크기를 절반으로 줄이는 규칙","음수를 0으로 바꾸는 함수","분류 결과를 확률로 바꾸는 함수"],a:0,ex:"커널은 가중치가 담긴 작은 표예요. 사진 위를 옮겨 다니며 곱하고 더해, 자신이 찾는 무늬가 있는 곳에서 큰 값을 내요. 크기를 줄이는 건 풀링, 음수를 0으로 바꾸는 건 ReLU예요."},
+  {type:"mcq",q:"6×6 사진에 3×3 커널을 한 칸씩(스트라이드 1) 옮기며 합성곱하면 특징 맵의 크기는?",opts:["4×4","6×6","3×3","2×2"],a:0,ex:"커널이 가로로 놓일 수 있는 자리가 6−3+1 = 4곳, 세로도 4곳이라 4×4예요."}]},
+{id:3,stage:"특징 추출",title:"활성화 함수 ReLU",goal:"음수는 0으로, 양수는 그대로",learned:"ReLU는 음수를 0으로 바꾸고 양수는 그대로 통과시켜요. 무늬가 발견된 곳의 신호만 다음 층으로 전달돼요.",steps:[
+  {type:"info",title:"ReLU: 음수는 0, 양수는 그대로",html:`<p class="lead">합성곱 결과에는 양수와 음수가 섞여 있어요. <b>활성화 함수</b>는 이 값을 다음 층으로 얼마나 보낼지 정해요. 합성곱 신경망에서 가장 많이 쓰는 <b>ReLU</b>의 규칙은 간단해요.</p>
+    <div class="card" style="display:grid;gap:10px"><div class="calc" style="text-align:center;font-size:15px">ReLU(x) = <b>max(0, x)</b></div>
+    <svg class="relu" viewBox="0 0 240 140" aria-label="ReLU 그래프: 0보다 작으면 0, 0보다 크면 입력과 같음"><line x1="10" y1="110" x2="230" y2="110" stroke="var(--line)" stroke-width="1.5"/><line x1="120" y1="10" x2="120" y2="130" stroke="var(--line)" stroke-width="1.5"/>
+    <polyline points="10,110 120,110 220,15" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/><text x="226" y="126" text-anchor="end">입력 x</text><text x="126" y="20">출력</text><text x="20" y="102">음수 → 0</text><text x="150" y="88">양수 → 그대로</text></svg>
+    <div class="gq"><div class="gp"><span class="note">입력</span>${gridHTML([[-4,6,0,11]],{signed:true,cs:"40px"})}</div><span class="garr">→</span><div class="gp"><span class="note">ReLU 출력</span>${gridHTML([[0,6,0,11]],{cs:"40px"})}</div></div></div>${pipeHTML(1)}`},
+  {type:"mount",mount:mReluClick},{type:"mount",mount:mReluPhoto},
+  {type:"mcq",q:"합성곱 결과에 ReLU를 적용하는 까닭으로 가장 알맞은 것은?",opts:["무늬가 발견된(양수) 곳의 신호만 남기고, 나머지는 0으로 꺼서 다음 층에 전달하려고","특징 맵의 크기를 줄이려고","커널의 가중치를 정하려고","사진을 컬러로 바꾸려고"],a:0,ex:"ReLU는 음수 신호를 0으로 꺼서 특징이 발견된 곳의 신호만 다음 층으로 보내요. 또한 곱하고 더하기만 하는 계산에 꺾인 모양(비선형성)을 더해 신경망이 복잡한 패턴도 배울 수 있게 해 줘요."},
+  {type:"mcq",q:"[−7, 0, 3, −1]에 ReLU를 적용한 결과는?",opts:["[0, 0, 3, 0]","[7, 0, 3, 1]","[−7, 0, 3, −1]","[0, 0, 1, 0]"],a:0,ex:"음수(−7, −1)는 0으로, 0과 양수(3)는 그대로예요. 부호만 바꾸는 절댓값과 헷갈리지 마세요."}]},
+{id:4,stage:"특징 추출",title:"풀링 층",goal:"2×2에서 가장 큰 값만 남기기",learned:"최대 풀링은 작은 구역마다 가장 큰 값만 남겨 특징 맵을 줄여요. 중요한 특징은 지키면서 계산량을 줄이고, 위치가 조금 바뀌어도 같은 특징으로 알아보게 해 줘요.",steps:[
+  {type:"info",title:"풀링: 구역에서 대표 값 하나만",html:`<p class="lead"><b>풀링 층</b>은 특징 맵을 작은 구역으로 나누고 구역마다 대표 값 하나만 남겨요. <b>최대 풀링</b>은 그중 <b>가장 큰 값</b>을 남겨요. 가장 큰 값 = 그 구역에서 무늬가 가장 강하게 발견된 정도예요.</p>
+    <div class="card"><div class="gq"><div class="gp"><span class="note">4×4</span>${gridHTML([[1,3,0,2],[5,2,4,1],[0,1,2,6],[2,0,3,1]],{cls:(r,c)=>"q"+(Math.floor(r/2)*2+Math.floor(c/2))})}</div><span class="garr">→</span><div class="gp"><span class="note">2×2</span>${gridHTML([[5,4],[2,6]],{cls:(r,c)=>"q"+(r*2+c),cs:"48px"})}</div></div></div>
+    <p class="lead">풀링 층에는 학습할 가중치가 없어요. 정해진 규칙(최댓값 고르기)대로 줄이기만 해요.</p>${pipeHTML(2)}`},
+  {type:"mount",mount:mPoolCalc},{type:"mount",mount:mPoolPhoto},
+  {type:"mcq",q:"풀링 층의 역할로 <b>알맞지 않은</b> 것은?",opts:["커널처럼 새로운 무늬를 찾는 가중치를 학습한다","특징 맵의 크기를 줄여 계산량을 줄인다","구역에서 가장 강한 특징을 남긴다","물체 위치가 조금 달라져도 비슷한 결과가 나오게 한다"],a:0,ex:"풀링 층은 가중치가 없고, 정해진 규칙으로 크기만 줄여요. 무늬를 찾는 가중치를 학습하는 건 합성곱 층의 커널이에요."}]},
+{id:5,stage:"분류",title:"Flatten과 완전연결 층",goal:"한 줄로 펼치고 뉴런으로 신호 보내 분류하기",learned:"Flatten은 특징 맵을 한 줄로 펼쳐요. 완전연결 층에서 모든 입력이 모든 뉴런과 연결되어 가중합으로 점수를 만들고, 소프트맥스가 점수를 확률로 바꿔 가장 큰 클래스를 고르면 최종 분류예요.",steps:[
+  {type:"info",title:"지금까지 만든 특징 맵",html:`<p class="lead">고양이 얼굴 6×6에서 커널 2개로 특징 맵 2장을 만들고, ReLU와 풀링을 거쳐 <b>2×2 맵 2장</b>이 남았어요. 이제 이 특징으로 <b>무엇인지 분류</b>할 차례예요.</p>
+    <div class="card"><div class="gq"><div class="gp"><span class="note">세로 경계</span>${gridHTML(PV,{cs:"48px",cls:()=>"pos"})}</div><div class="gp"><span class="note">가로 경계</span>${gridHTML(PHm,{cs:"48px",cls:()=>"neg"})}</div></div></div>${pipeHTML(3)}`},
+  {type:"mount",mount:mFlatten},{type:"mount",mount:mFC},{type:"mount",mount:mScore},{type:"mount",mount:mResult},
+  {type:"mcq",q:"완전연결 층 앞에서 Flatten을 하는 까닭은?",opts:["완전연결 층은 1차원(한 줄) 입력을 받기 때문에","특징 맵의 숫자를 더 크게 만들려고","음수를 0으로 바꾸려고","커널의 크기를 정하려고"],a:0,ex:"Flatten은 2차원 특징 맵을 값은 그대로 두고 한 줄로 늘어놓기만 해요. 그래야 숫자 하나하나가 완전연결 층의 입력 뉴런 하나에 대응돼요."}]},
+{id:6,stage:"개념 확인",title:"개념 확인 퀴즈",goal:"커널, 풀링, ReLU, Flatten 개념 총정리",learned:"합성곱 층(커널) → ReLU → 풀링 층이 특징을 뽑고, Flatten → 완전연결 층 → 소프트맥스가 그 특징으로 분류해요.",steps:[
+  {type:"mcq",q:"커널(필터)의 가중치 값은 어떻게 정해질까요?",opts:["학습 과정에서 데이터를 보며 스스로 알맞은 값을 찾아간다","사람이 모든 값을 직접 정해 넣어야 한다","항상 1과 −1만 사용한다","사진마다 무작위로 바뀐다"],a:0,ex:"이 체험에서는 이해를 위해 세로·가로 경계 커널을 정해 두었지만, 실제 합성곱 신경망은 학습하면서 분류에 도움이 되는 커널 값을 스스로 찾아요."},
+  {type:"mcq",q:"<b>특징 맵</b>에 대한 설명으로 옳은 것은?",opts:["커널이 찾는 무늬가 사진의 어디에 얼마나 강하게 있는지 나타낸 표","사진을 한 줄로 펼친 배열","분류 결과 확률을 모은 표","커널 가중치를 모아 놓은 표"],a:0,ex:"특징 맵의 값이 큰 곳 = 커널이 찾는 무늬가 강하게 나타난 곳이에요."},
+  {type:"mcq",q:"하나의 커널이 사진 전체를 훑으며 같은 가중치를 쓰는 것의 장점은?",opts:["고양이 눈이 사진 어디에 있든 같은 커널로 찾을 수 있고, 가중치 수도 적다","사진의 색을 더 선명하게 만든다","풀링 층이 필요 없어진다","항상 100% 정확해진다"],a:0,ex:"같은 커널을 모든 위치에 재사용하니 위치가 달라도 같은 무늬를 찾고, 학습할 가중치 수도 크게 줄어요."},
+  {type:"mcq",q:"합성곱 층에서 커널의 <b>개수</b>를 2개에서 8개로 늘리면?",opts:["서로 다른 특징 맵이 8장 생겨 더 다양한 특징을 찾는다","특징 맵의 가로·세로 크기가 4배가 된다","풀링 결과가 항상 0이 된다","분류할 클래스 수가 8개가 된다"],a:0,ex:"커널 하나가 특징 맵 한 장을 만들어요. 커널이 8개면 특징 맵도 8장이에요. 크기는 커널 크기와 스트라이드가 정해요."},
+  {type:"mcq",q:"8×8 특징 맵에 2×2 최대 풀링을 하면 크기는?",opts:["4×4","7×7","6×6","2×2"],a:0,ex:"2×2 구역마다 값 1개를 남기니 가로·세로가 각각 절반, 8×8 → 4×4가 돼요."},
+  {type:"mcq",q:"풀링 층의 역할을 가장 잘 설명한 것은?",opts:["중요한 특징은 남기고 크기를 줄여 계산을 줄이며, 작은 위치 변화에 덜 민감하게 한다","새로운 무늬를 찾는 가중치를 학습한다","음수를 0으로 바꾼다","점수를 확률로 바꾼다"],a:0,ex:"최대 풀링은 구역의 최댓값(가장 강한 특징)을 남기며 크기를 줄여요. 고양이가 한두 칸 움직여도 같은 구역 안이면 결과가 같아요."},
+  {type:"mcq",q:"고양이·강아지·토끼 3가지로 분류하는 모델에서 마지막 완전연결 층의 출력 뉴런 수는?",opts:["3개","1개","8개","커널 개수와 같다"],a:0,ex:"출력 뉴런 하나가 클래스 하나의 점수를 맡아요. 3가지로 분류하면 출력 뉴런도 3개예요."},
+  {type:"mcq",q:"소프트맥스 결과가 고양이 0.88, 강아지 0.09, 토끼 0.03이에요. 옳은 해석은?",opts:["세 값의 합은 1이고, 가장 큰 고양이로 분류한다","고양이일 가능성은 0.88%이다","세 값은 서로 관계가 없다","가장 작은 토끼로 분류한다"],a:0,ex:"소프트맥스는 점수를 합이 1(100%)인 확률로 바꿔요. 확률이 가장 큰 클래스가 최종 예측이에요."},
+  {type:"fill",q:"고양이 사진이 지나가는 순서대로 빈칸을 채워 보세요.",style:"pairs",lines:["<span>1</span>{{0}}","<span>2</span>{{1}}","<span>3</span>{{2}}","<span>4</span>{{3}}","<span>5</span>{{4}}","<span>6</span>{{5}}"],
+    ans:["합성곱 층 (커널)","활성화 함수 ReLU","풀링 층","Flatten","완전연결 층","소프트맥스로 최종 분류"],
+    ex:"앞의 세 단계(합성곱 → ReLU → 풀링)가 <b>특징을 뽑는 부분</b>, 뒤의 세 단계(Flatten → 완전연결 → 소프트맥스)가 <b>분류하는 부분</b>이에요."}]}
+];
+const GROUPS=[{t:"단계 1",s:"사진 준비",ids:[1]},{t:"단계 2",s:"특징 추출",ids:[2,3,4]},{t:"단계 3",s:"분류",ids:[5]},{t:"단계 4",s:"개념 확인",ids:[6]}];
+
+/* =================== shell =================== */
+const app=$("#app");
+let cur=null,nav=0;
+const starsOf=id=>(S.prog[id]||{}).stars||0;
+const MAXST=()=>LEVELS.length*3;
+const totStars=()=>LEVELS.reduce((s,L)=>s+starsOf(L.id),0);
+const unlocked=i=>i===0||starsOf(LEVELS[i-1].id)>0;
+const allDone=()=>LEVELS.every(L=>starsOf(L.id)>0);
+const starStr=n=>[0,1,2].map(i=>`<span class="${i<n?"on":""}">★</span>`).join("");
+
+function renderHome(){
+  nav++;cur=null;
+  app.innerHTML=`
+  <header class="hero">
+    <span class="eyebrow">합성곱 신경망으로 사진 분류하기 · 코드 없이 개념 실습</span>
+    <div class="titlerow"><h1>고양이를<br>알아보는 <em>CNN</em></h1><button class="resetbtn" id="rst">퀴즈 초기화</button></div>
+    <img class="heroimg" src="${IMG_SRC}" alt="위를 올려다보는 고양이 사진">
+    <p>이 고양이 사진이 합성곱 층 → ReLU → 풀링 층 → Flatten → 완전연결 층을 지나 "고양이"로 분류되기까지, 숫자를 직접 계산하며 따라가 봐요.</p>
+    <div class="me"><label for="nm">이름</label><input id="nm" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}" autocomplete="off"><span class="tot">★ ${totStars()} / ${MAXST()}</span></div>
+  </header>
+  ${allDone()?`<button class="btn primary certcta" id="cert">완주 카드 보기</button>`:""}
+  ${GROUPS.map(g=>`<section class="stage-g"><h3>${g.t} <small>${g.s}</small></h3>
+    ${g.ids.map(id=>{const i=LEVELS.findIndex(L=>L.id===id),L=LEVELS[i],st=starsOf(id),open=unlocked(i);
+      return `<button class="lv ${st?"done":open?"open":"locked"}" data-i="${i}" ${open?"":'aria-disabled="true"'}>
+        <span class="num"><span>${id}</span></span><span class="tt"><b>${L.title}</b><span>${L.goal}</span></span><span class="st">${starStr(st)}</span></button>`}).join("")}
+  </section>`).join("")}
+  <div class="foot"><span>진행 상황은 이 기기에만 저장돼요.</span><span>2026 인공지능 기초</span></div>`;
+  $("#nm").addEventListener("input",e=>{S.name=e.target.value.trim();save()});
+  $$(".lv").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.i;if(unlocked(i))openLevel(i)}));
+  $("#rst").addEventListener("click",askReset);
+  const c=$("#cert");if(c)c.addEventListener("click",renderCert);
+  window.scrollTo(0,0);
+}
+function askReset(){
+  const ov=document.createElement("div");ov.className="ov";
+  ov.innerHTML=`<div class="ovc" role="dialog" aria-label="퀴즈 초기화"><span class="eyebrow">퀴즈 초기화</span><h2>초기화할까요?</h2>
+    <p style="margin:0">모은 별이 모두 지워지고 레벨 1부터 다시 시작해요. 적어 둔 이름은 그대로 남아요.</p>
+    <div class="btns"><button class="btn primary" id="rsy">초기화하기</button><button class="btn ghost" id="rsn">취소</button></div></div>`;
+  document.body.appendChild(ov);
+  $("#rsn").addEventListener("click",()=>ov.remove());
+  $("#rsy").addEventListener("click",()=>{ov.remove();S.prog={};save();renderHome()});
+}
+function openLevel(i){
+  nav++;cur={i,L:LEVELS[i],idx:0,mistakes:0};
+  app.innerHTML=`
+  <div class="lvhead"><button class="back" id="back" aria-label="레벨 지도로 돌아가기">←</button>
+    <div class="lvt"><span class="eyebrow">LEVEL ${cur.L.id} · ${cur.L.stage}</span><b>${cur.L.title}</b></div>
+    <span class="miss" id="miss">실수 0</span></div>
+  <div class="bar"><i id="bar"></i></div>
+  <main class="stage" id="stage"></main>
+  <footer class="act"><div class="in"><button class="btn primary" id="go">다음</button></div></footer>`;
+  $("#back").addEventListener("click",renderHome);
+  renderStep();
+}
+function setGo(label,enabled,fn){const g=$("#go");if(!g)return;g.textContent=label;g.disabled=!enabled;g.onclick=fn||null}
+function mistake(){if(!cur)return;cur.mistakes++;const m=$("#miss");m.textContent="실수 "+cur.mistakes;m.classList.remove("bump");void m.offsetWidth;m.classList.add("bump")}
+function nextStep(){cur.idx++;if(cur.idx>=cur.L.steps.length)return finishLevel();renderStep()}
+function renderStep(){
+  nav++;const token=nav;
+  const st=cur.L.steps[cur.idx],n=cur.L.steps.length;
+  $("#bar").style.width=(cur.idx/n*100)+"%";
+  const stage=$("#stage");
+  stage.innerHTML=`<p class="stepno">${cur.idx+1} / ${n}</p><div id="box" class="stage" style="padding:0"></div>`;
+  const box=$("#box");
+  const api={done:()=>{if(token===nav)setGo(cur.idx===n-1?"레벨 완료":"다음",true,nextStep)},mistake,alive:()=>token===nav,setGo:(l,e,f)=>{if(token===nav)setGo(l,e,f)}};
+  if(st.type==="mcq")stepMCQ(st,box,api);
+  else if(st.type==="fill")stepFill(st,box,api);
+  else if(st.type==="info"){box.innerHTML=`<h2 class="q">${st.title}</h2>${st.html}`;api.done()}
+  else{setGo("다음",false);st.mount(box,api)}
+  window.scrollTo(0,0);
+}
+function stepMCQ(st,box,api){
+  const order=shuffle(st.opts.map((o,i)=>i));
+  box.innerHTML=`<h2 class="q">${st.q}</h2>
+   <div class="opts">${order.map(i=>`<button class="opt" data-i="${i}">${st.opts[i]}</button>`).join("")}</div><div class="explain" hidden></div>`;
+  setGo("정답을 골라 주세요",false);
+  let solved=false;
+  $$(".opt",box).forEach(b=>b.addEventListener("click",()=>{
+    if(solved)return;const i=+b.dataset.i;
+    if(i===st.a){solved=true;b.classList.add("right");$$(".opt",box).forEach(o=>o.disabled=true);
+      const ex=$(".explain",box);ex.innerHTML=`<b>정답!</b> ${st.ex}`;ex.hidden=false;api.done();ex.scrollIntoView({block:"nearest",behavior:"smooth"})}
+    else{b.classList.add("wrong");b.disabled=true;mistake()}
+  }));
+}
+function stepFill(st,box,api){
+  const filled=st.ans.map(()=>null);let active=0,solved=false;
+  const bank=shuffle([...new Set(st.bank||st.ans)]);
+  box.innerHTML=`<h2 class="q">${st.q}</h2>
+   <div class="pairs">${st.lines.map(l=>`<div class="ln">${l.replace(/\{\{(\d+)\}\}/g,(m,k)=>`<button class="blank empty" data-k="${k}" aria-label="빈칸 ${+k+1}"></button>`)}</div>`).join("")}</div>
+   <p class="hint">빈칸을 누른 다음, 아래 블록을 골라 넣으세요. 채운 빈칸을 다시 누르면 비워져요.</p>
+   <div class="bank">${bank.map(c=>`<button class="chip" data-v="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+   <div class="explain" hidden></div>`;
+  const blanks=$$(".blank",box);
+  function paint(){
+    blanks.forEach(b=>{const k=+b.dataset.k;b.textContent=filled[k]??"";b.classList.toggle("empty",filled[k]==null);b.classList.toggle("on",k===active&&!solved)});
+    $$(".chip",box).forEach(c=>c.disabled=solved||filled.includes(c.dataset.v));
+    if(!solved)api.setGo(filled.every(v=>v!=null)?"확인하기":"빈칸을 모두 채워 주세요",filled.every(v=>v!=null),check);
+  }
+  blanks.forEach(b=>b.addEventListener("click",()=>{if(solved)return;const k=+b.dataset.k;if(filled[k]!=null&&active===k){filled[k]=null}active=k;b.classList.remove("wrong");paint()}));
+  $$(".chip",box).forEach(c=>c.addEventListener("click",()=>{
+    if(solved)return;filled[active]=c.dataset.v;blanks.find(b=>+b.dataset.k===active).classList.remove("wrong");
+    for(let s=1;s<=filled.length;s++){const k=(active+s)%filled.length;if(filled[k]==null){active=k;break}}
+    paint();
+  }));
+  function check(){
+    const wrong=filled.map((v,k)=>v===st.ans[k]?-1:k).filter(k=>k>=0);
+    if(!wrong.length){solved=true;blanks.forEach(b=>{b.classList.add("right");b.classList.remove("on");b.disabled=true});
+      const ex=$(".explain",box);ex.innerHTML=`<b>완성!</b> ${st.ex}`;ex.hidden=false;paint();api.done();ex.scrollIntoView({block:"nearest",behavior:"smooth"})}
+    else{mistake();wrong.forEach(k=>{const b=blanks.find(x=>+x.dataset.k===k);b.classList.remove("wrong");void b.offsetWidth;b.classList.add("wrong");filled[k]=null});active=wrong[0];paint();
+      api.setGo(`틀린 빈칸 ${wrong.length}개를 다시 채워 주세요`,false)}
+  }
+  paint();
+}
+function finishLevel(){
+  $("#bar").style.width="100%";
+  const m=cur.mistakes,stars=m===0?3:m<=2?2:1,id=cur.L.id;
+  S.prog[id]={stars:Math.max(starsOf(id),stars)};save();
+  const i=cur.i,last=i===LEVELS.length-1;
+  const ov=document.createElement("div");ov.className="ov";
+  ov.innerHTML=`<div class="ovc" role="dialog" aria-label="레벨 클리어"><span class="eyebrow">LEVEL ${id}</span><h2>클리어!</h2>
+    <div class="stars">${starStr(stars)}</div><p class="note">실수 ${m}번 · ${m===0?"완벽해요!":m<=2?"잘했어요!":"끝까지 해냈어요!"}</p>
+    <div class="learned"><b>배운 것</b><br>${cur.L.learned}</div>
+    <div class="btns">${last?`<button class="btn primary" id="ovn">완주 카드 보기</button>`:`<button class="btn primary" id="ovn">다음 레벨</button>`}<button class="btn ghost" id="ovh">레벨 지도</button></div></div>`;
+  document.body.appendChild(ov);
+  $("#ovn").addEventListener("click",()=>{ov.remove();last?renderCert():openLevel(i+1)});
+  $("#ovh").addEventListener("click",()=>{ov.remove();renderHome()});
+}
+function renderCert(){
+  nav++;const d=new Date();
+  app.innerHTML=`
+  <div class="lvhead"><button class="back" id="back" aria-label="레벨 지도로 돌아가기">←</button><div class="lvt"><span class="eyebrow">완주 카드</span><b>고양이를 알아보는 CNN</b></div><span></span></div>
+  <div class="cert">
+    <span class="eyebrow">합성곱 신경망으로 사진 분류하기</span>
+    <h2>고양이 CNN<br>퀘스트 완주</h2>
+    <div class="me" style="margin:0"><label for="nm2">이름</label><input id="nm2" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}"></div>
+    <p style="margin:0">고양이 사진을 숫자로 바꾸고, 커널로 특징 맵을 만들고, ReLU와 최대 풀링을 거쳐 Flatten과 완전연결 층으로 "${CLASSES[0].n}"(${(PROB[0]*100).toFixed(1)}%)라는 답을 직접 계산해 냈어요.</p>
+    <div class="grid">${LEVELS.map(L=>`<div>${L.title}<b>${"★".repeat(starsOf(L.id))||"–"}</b></div>`).join("")}</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span class="note">${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}.</span><span class="big" style="font-size:30px;color:var(--star)">★ ${totStars()}/${MAXST()}</span></div>
+  </div>
+  <button class="btn ghost" id="home" style="width:100%;margin-top:14px">레벨 지도로</button>`;
+  $("#back").addEventListener("click",renderHome);$("#home").addEventListener("click",renderHome);
+  $("#nm2").addEventListener("input",e=>{S.name=e.target.value.trim();save()});
+  window.scrollTo(0,0);
+}
+renderHome();
+</script>
+</body>
+</html>
