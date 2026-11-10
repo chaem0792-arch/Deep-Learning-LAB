@@ -1,0 +1,1276 @@
+<title>합성곱 모델 구현하기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Nanum+Pen+Script&family=Gamja+Flower&family=Hi+Melody&family=Caveat:wght@400;700&family=Kalam:wght@400;700&family=Patrick+Hand&family=Indie+Flower&family=Shadows+Into+Light&family=Nanum+Brush+Script&text=0123456789&display=block">
+<style>
+/* Layout: one phone-width column on graph paper; level map of 4 textbook stages; sticky level header + fixed action bar */
+:root{
+  --paper:#EAEFF4; --grid:rgba(22,32,58,.06); --surface:#FFFFFF; --sunk:#F3F6F9;
+  --ink:#16203A; --muted:#5A6579; --line:#D2D9E2;
+  --accent:#EE6418; --accent-soft:#FFE6D5; --on-accent:#FFFFFF;
+  --ok:#0C8A79; --ok-soft:#D7F1EC; --bad:#D13A3A; --bad-soft:#FBE0E0; --star:#F2A900;
+  --code-bg:#1A2340; --code-ink:#E6EBF5; --code-dim:#8994AE; --code-str:#FFB27E; --code-key:#93D5FF;
+  --f-display:"Do Hyeon","IBM Plex Sans KR",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0E1424; --grid:rgba(232,237,246,.045); --surface:#172036; --sunk:#111a2d;
+  --ink:#E8EDF6; --muted:#9BA6BB; --line:#2B3651;
+  --accent:#FF8B3E; --accent-soft:#3B2515; --on-accent:#1B0E04;
+  --ok:#3CC6B1; --ok-soft:#10352F; --bad:#FF6E6E; --bad-soft:#3C1B1F; --star:#FFC233;
+  --code-bg:#0A0F1D; --code-ink:#E6EBF5; --code-dim:#7D88A2; --code-str:#FFB27E; --code-key:#93D5FF;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0E1424; --grid:rgba(232,237,246,.045); --surface:#172036; --sunk:#111a2d;
+  --ink:#E8EDF6; --muted:#9BA6BB; --line:#2B3651;
+  --accent:#FF8B3E; --accent-soft:#3B2515; --on-accent:#1B0E04;
+  --ok:#3CC6B1; --ok-soft:#10352F; --bad:#FF6E6E; --bad-soft:#3C1B1F; --star:#FFC233;
+  --code-bg:#0A0F1D; --code-ink:#E6EBF5; --code-dim:#7D88A2; --code-str:#FFB27E; --code-key:#93D5FF;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background-color:var(--paper);background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:22px 22px;color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#app{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 120px}
+h1,h2,h3{text-wrap:balance;margin:0}
+code,.mono{font-family:var(--f-mono)}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted);font-weight:500}
+
+/* Home */
+.hero{padding-block:28px 8px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.titlerow{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.rstbtn{flex:none;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);border-radius:99px;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:4px}
+.rstbtn:active{transform:scale(.97)}
+.hero h1{font-family:var(--f-display);font-weight:400;font-size:clamp(40px,11vw,56px);line-height:1;letter-spacing:-.01em}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{margin:0;color:var(--muted)}
+.pixrow{display:flex;gap:3px;margin-top:4px}
+.pixrow i{width:10px;height:10px;border-radius:2px;background:var(--ink)}
+.me{display:flex;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin-top:14px}
+.me label{font-size:13px;color:var(--muted);white-space:nowrap}
+.me input{flex:1;min-width:0;border:0;background:transparent;font:inherit;font-weight:700;color:var(--ink);padding:4px 0}
+.me .tot{font-family:var(--f-display);font-size:20px;color:var(--star);white-space:nowrap}
+.stage-g{margin-top:26px;display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.stage-g h3{font-family:var(--f-display);font-weight:400;font-size:22px;display:flex;gap:10px;align-items:baseline}
+.stage-g h3 small{font-family:var(--f-body);font-size:13px;color:var(--muted)}
+.lv{display:grid;grid-template-columns:54px 1fr auto;gap:12px;align-items:center;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;cursor:pointer;transition:transform .12s}
+.lv:active{transform:scale(.985)}
+.lv .num{width:54px;height:54px;border-radius:12px;display:grid;place-items:center;font-family:var(--f-display);font-size:28px;background:var(--sunk);color:var(--muted)}
+.lv.open .num{background:var(--accent);color:var(--on-accent)}
+.lv.done .num{background:var(--ok);color:var(--on-accent)}
+.lv .tt{min-width:0}
+.lv .tt b{display:block;font-size:17px}
+.lv .tt span{display:block;font-size:13px;color:var(--muted);line-height:1.4}
+.lv .st{font-size:15px;letter-spacing:1px;color:var(--line);white-space:nowrap}
+.lv .st .on{color:var(--star)}
+.lv.locked{opacity:.55;cursor:not-allowed}
+.lv.locked .num::after{content:"🔒";font-size:20px}
+.lv.locked .num span{display:none}
+.foot{margin-top:28px;display:grid;gap:10px;justify-items:center;color:var(--muted);font-size:13px;text-align:center}
+.linkbtn{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:13px;padding:6px}
+.certcta{margin-top:20px}
+
+/* Level */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
+.lvhead{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;padding-block:10px 8px;margin-inline:-4px}
+.back{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:20px;cursor:pointer}
+.lvt{min-width:0;line-height:1.25}
+.lvt b{display:block;font-family:var(--f-display);font-weight:400;font-size:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.miss{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:4px 10px;white-space:nowrap}
+.miss.bump{animation:bump .4s}
+@keyframes bump{30%{transform:scale(1.18);color:var(--bad);border-color:var(--bad)}}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:99px;transition:width .35s}
+.stage{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;padding-top:18px}
+.stepno{margin:0;font-size:13px;color:var(--muted);font-family:var(--f-mono)}
+.q{font-size:20px;line-height:1.45;font-weight:700}
+.lead{margin:0;color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+
+/* Code */
+.code,.log{margin:0;background:var(--code-bg);color:var(--code-ink);font-family:var(--f-mono);font-size:13.5px;line-height:1.75;border-radius:var(--r);padding:14px;white-space:pre-wrap;word-break:break-word;overflow-x:auto}
+.code .k{color:var(--code-key)} .code .s{color:var(--code-str)} .code .c{color:var(--code-dim)} .code .n{color:#B9E68C}
+.code .ln{min-height:1.75em}
+.log{font-size:12px;line-height:1.6;max-height:240px;overflow-y:auto;color:#CFD7E8}
+.log b{color:var(--code-str);font-weight:600}
+.blank{display:inline-block;min-width:4.2em;min-height:1.6em;vertical-align:middle;border:1.5px dashed var(--code-dim);border-radius:7px;background:rgba(255,255,255,.06);color:#fff;font-family:var(--f-mono);font-size:13px;padding:0 6px;margin:1px 0;cursor:pointer;line-height:1.5}
+.blank.on{border-style:solid;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 35%,transparent)}
+.blank:not(.empty){border-style:solid;border-color:#5C6A8C;background:rgba(147,213,255,.14)}
+.blank.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 25%,transparent);animation:shake .35s}
+.blank.right{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 30%,transparent)}
+.pairs{display:grid;gap:10px}
+.pairs .ln{display:grid;grid-template-columns:minmax(0,7.5em) 1fr;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px}
+.pairs code{font-weight:600;font-size:14px;overflow-wrap:anywhere}
+.pairs .blank{width:100%;min-height:2.6em;font-family:var(--f-body);font-size:14px;color:var(--ink);background:var(--sunk);border-color:var(--line);text-align:left;padding:4px 10px}
+.pairs .blank:not(.empty){background:var(--accent-soft);border-color:var(--accent)}
+.pairs .blank.right{background:var(--ok-soft);border-color:var(--ok)}
+.pairs .blank.wrong{background:var(--bad-soft);border-color:var(--bad)}
+.hint{margin:0;font-size:13px;color:var(--muted)}
+.bank{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 12px;font-family:var(--f-mono);font-size:14px;cursor:pointer;box-shadow:0 2px 0 var(--line);max-width:100%;overflow-wrap:anywhere;text-align:left}
+.chip.kr{font-family:var(--f-body)}
+.chip:active{transform:translateY(2px);box-shadow:none}
+.chip:disabled{opacity:.45}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+/* MCQ */
+.opts{display:grid;gap:10px}
+.opt{display:flex;gap:10px;align-items:flex-start;text-align:left;width:100%;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:13px 14px;cursor:pointer;line-height:1.45}
+.opt::before{content:"";flex:none;width:18px;height:18px;margin-top:2px;border-radius:50%;border:2px solid var(--line)}
+.opt.right{border-color:var(--ok);background:var(--ok-soft)}
+.opt.right::before{border-color:var(--ok);background:var(--ok)}
+.opt.wrong{border-color:var(--bad);background:var(--bad-soft);animation:shake .35s}
+.opt.wrong::before{border-color:var(--bad)}
+.opt:disabled{cursor:default}
+.opt:disabled:not(.right):not(.wrong){opacity:.6}
+.explain{border-radius:12px;padding:12px 14px;background:var(--ok-soft);border:1px solid var(--ok);line-height:1.55}
+.explain b:first-child{color:var(--ok)}
+.explain.warn{background:var(--accent-soft);border-color:var(--accent)}
+.explain.warn b:first-child{color:var(--accent)}
+
+/* Action bar */
+.act{position:fixed;left:0;right:0;bottom:0;z-index:6;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-top:1px solid var(--line);padding-top:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.act .in{max-width:528px;margin:0 auto}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:14px 18px;font-weight:700;font-size:16px;cursor:pointer}
+.btn.primary{width:100%;background:var(--accent);color:var(--on-accent);box-shadow:0 3px 0 color-mix(in srgb,var(--accent) 60%,#000)}
+.btn.primary:active{transform:translateY(2px);box-shadow:none}
+.btn:disabled{background:var(--line);color:var(--muted);box-shadow:none;cursor:default}
+.btn.run{background:var(--code-bg);color:var(--code-ink);font-family:var(--f-mono);font-size:14px;font-weight:600;justify-content:flex-start;width:100%;text-align:left}
+.btn.run::before{content:"▶";color:var(--code-str)}
+.btn.run:disabled{opacity:.6;background:var(--code-bg);color:var(--code-ink)}
+.btn.ghost{background:var(--surface);border:1.5px solid var(--line)}
+
+/* Widgets */
+.pixwrap{display:grid;justify-items:center}
+canvas.pix{width:100%;max-width:340px;aspect-ratio:1;border-radius:10px;touch-action:manipulation;background:#000}
+.pixinfo{text-align:center;font-family:var(--f-mono);font-size:15px}
+.pixinfo b{color:var(--accent);font-size:20px}
+.rowstrip{font-family:var(--f-mono);font-size:11px;overflow-x:auto;white-space:nowrap;background:var(--sunk);border-radius:10px;padding:8px;color:var(--muted)}
+.rowstrip span{display:inline-block;min-width:2.6em;text-align:right}
+.rowstrip span.hi{color:var(--accent);font-weight:600}
+.thumbs{width:100%;max-width:420px;image-rendering:pixelated;border-radius:8px;background:#000}
+.slider{display:grid;gap:12px}
+.slider input{width:100%;accent-color:var(--accent);height:32px}
+.swatches{display:grid;grid-template-columns:72px 1fr;gap:14px;align-items:center}
+.sw{width:72px;height:72px;border-radius:10px;border:1px solid var(--line)}
+.eq{font-family:var(--f-mono);font-size:18px;line-height:1.5}
+.eq b{color:var(--accent);font-size:24px}
+table.t{width:100%;border-collapse:collapse;font-size:14px}
+table.t th,table.t td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+table.t td.n,table.t th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+table.t tfoot td{font-weight:700;border-bottom:0}
+.tablebox{overflow-x:auto}
+.net{width:100%;aspect-ratio:16/10;max-width:100%}
+.stepper{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.stepper label{font-size:14px;color:var(--muted);flex:1;min-width:8em}
+.stepper button{width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);font-size:22px;cursor:pointer}
+.stepper output{font-family:var(--f-display);font-size:28px;min-width:2ch;text-align:center}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.seg button{border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:10px;font-family:var(--f-mono);font-size:13px;cursor:pointer;line-height:1.35}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);font-weight:600}
+.cfg{display:flex;flex-wrap:wrap;gap:6px}
+.cfg span{font-family:var(--f-mono);font-size:12px;background:var(--sunk);border:1px solid var(--line);border-radius:99px;padding:3px 10px}
+.chartbox{display:grid;gap:6px}
+.legend{display:flex;gap:14px;font-size:13px;color:var(--muted)}
+.legend i{display:inline-block;width:14px;height:4px;border-radius:2px;vertical-align:middle;margin-right:6px}
+canvas.chart{width:100%;height:190px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.prog{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--ok)}
+.digits{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.digits button{aspect-ratio:1.3;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);font-family:var(--f-display);font-size:26px;cursor:pointer}
+.digits button.right{background:var(--ok);border-color:var(--ok);color:var(--on-accent)}
+.digits button.wrong{background:var(--bad-soft);border-color:var(--bad);animation:shake .35s}
+.predrow{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:center}
+.predrow canvas{width:96px;height:96px;image-rendering:pixelated;border-radius:8px;background:#000}
+.padwrap{display:grid;gap:10px;justify-items:center}
+canvas.pad{width:100%;max-width:300px;aspect-ratio:1;border-radius:14px;background:#000;touch-action:none;border:3px solid var(--line)}
+.padbtns{display:grid;grid-template-columns:1fr 2fr;gap:10px;width:100%;max-width:300px}
+.bars{display:grid;gap:5px}
+.barrow{display:grid;grid-template-columns:1.4em 1fr 4.2em;gap:8px;align-items:center;font-family:var(--f-mono);font-size:13px}
+.barrow .tr{height:14px;background:var(--sunk);border-radius:4px;overflow:hidden}
+.barrow .tr i{display:block;height:100%;background:var(--muted);border-radius:4px;transition:width .3s}
+.barrow.top .tr i{background:var(--accent)}
+.barrow.top{font-weight:600}
+.verdict{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seen{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted)}
+.seen canvas{width:56px;height:56px;image-rendering:pixelated;border-radius:6px;background:#000}
+.big{font-family:var(--f-display);font-size:44px;line-height:1;color:var(--accent)}
+.note{font-size:13px;color:var(--muted);margin:0}
+
+/* Overlay */
+.ov{position:fixed;inset:0;z-index:20;background:color-mix(in srgb,var(--ink) 55%,transparent);display:grid;place-items:center;padding:20px max(16px,env(safe-area-inset-right,0px)) 20px max(16px,env(safe-area-inset-left,0px))}
+.ovc{background:var(--surface);border-radius:20px;padding:26px 20px;width:100%;max-width:420px;display:grid;gap:14px;text-align:center;animation:pop .35s}
+@keyframes pop{from{transform:scale(.9);opacity:.4}}
+.ovc h2{font-family:var(--f-display);font-weight:400;font-size:34px}
+.stars{font-size:46px;letter-spacing:6px;color:var(--line)}
+.stars .on{color:var(--star);display:inline-block;animation:pop .4s backwards}
+.stars .on:nth-child(2){animation-delay:.12s}.stars .on:nth-child(3){animation-delay:.24s}
+.ovc .learned{background:var(--sunk);border-radius:12px;padding:12px;text-align:left;font-size:14px}
+.ovc .btns{display:grid;gap:8px}
+
+/* Certificate */
+.cert{margin-top:24px;background:var(--surface);border:2px solid var(--ink);border-radius:18px;padding:22px 18px;display:grid;gap:14px;position:relative;overflow:hidden}
+.cert h2{font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1.1}
+.cert .who{font-size:26px;font-weight:700}
+.cert .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.cert .grid div{background:var(--sunk);border-radius:8px;padding:6px;text-align:center;font-size:12px}
+.cert .grid b{display:block;font-family:var(--f-display);font-weight:400;font-size:18px}
+.cert .kpi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ---- CNN quest additions ---- */
+:root{--neg:#2F6FD6;--neg-soft:#DCE8FB}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--neg:#6FA8FF;--neg-soft:#16284A}}
+:root[data-theme="dark"]{--neg:#6FA8FF;--neg-soft:#16284A}
+.titlerow{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.resetbtn{flex:none;margin-top:4px;border:1.5px solid var(--line);background:var(--surface);color:var(--muted);border-radius:10px;padding:8px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 2px 0 var(--line)}
+.resetbtn:active{transform:translateY(2px);box-shadow:none}
+.codecta{margin-top:12px;width:100%}
+/* number grids (quizzes + sliding window) */
+.gq{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px 12px}
+.gp{display:grid;gap:4px;justify-items:center}
+.gp>.note{font-weight:600}
+.mg{display:grid;grid-template-columns:repeat(var(--c),minmax(0,1fr));gap:3px}
+.mc{width:var(--cs,40px);height:var(--cs,40px);display:grid;place-items:center;border-radius:7px;background:var(--surface);border:1.5px solid var(--line);font-family:var(--f-mono);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;padding:0;text-align:center;color:var(--ink)}
+.mc.neg{color:var(--neg);background:var(--neg-soft)}
+.mc.q0{background:color-mix(in srgb,var(--accent) 10%,var(--surface))}
+.mc.q1{background:color-mix(in srgb,var(--ok) 12%,var(--surface))}
+.mc.q2{background:color-mix(in srgb,var(--star) 14%,var(--surface))}
+.mc.q3{background:color-mix(in srgb,var(--neg) 12%,var(--surface))}
+.mc.hl{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+input.mc{background:var(--sunk);border-style:dashed;font:inherit;font-family:var(--f-mono);font-weight:700;font-size:16px}
+input.mc:focus{outline:none;border-style:solid;border-color:var(--accent);background:var(--accent-soft)}
+input.mc.right{border-style:solid;border-color:var(--ok);background:var(--ok-soft)}
+input.mc.wrong{border-style:solid;border-color:var(--bad);background:var(--bad-soft);animation:shake .35s}
+.garr{font-family:var(--f-display);font-size:26px;color:var(--muted)}
+.sl .mc{--cs:27px;font-size:12.5px;border-radius:5px}
+.sl .gq{flex-wrap:nowrap;gap:10px}
+.sl .mc.win{background:var(--accent-soft);border-color:var(--accent)}
+.sl .mc.one{color:var(--ink)}
+.sl .mc.zero{color:var(--muted);font-weight:400}
+.sl .mc.cur{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.sl .mc.empty{color:transparent}
+.calc{font-family:var(--f-mono);font-size:13px;background:var(--sunk);border-radius:10px;padding:10px;overflow-wrap:anywhere}
+.calc b{color:var(--accent);font-size:16px}
+.btnrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.btnrow .btn{padding:12px 8px;font-size:14px}
+.seg3{grid-template-columns:repeat(4,1fr)}
+.seg2{grid-template-columns:1fr 1fr}
+.optrow{display:grid;gap:6px}
+.optpair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.optrow>b{font-size:14px}
+/* feature maps */
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:start}
+.flow figure{margin:0;display:grid;gap:4px;justify-items:center;text-align:center}
+.flow figcaption{font-size:11.5px;color:var(--muted);line-height:1.3}
+.flow canvas,.fmaps canvas,.duo canvas{width:100%;aspect-ratio:1;image-rendering:pixelated;border-radius:6px;background:#000;display:block}
+.flow3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fmaps{display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px}
+.fmaps figure{margin:0;display:grid;gap:2px;justify-items:center;font-size:11px;color:var(--muted);font-family:var(--f-mono)}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.duo figure{margin:0;display:grid;gap:4px;text-align:center;font-size:12.5px;color:var(--muted)}
+.duo canvas{cursor:pointer;touch-action:manipulation}
+.mapkey{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.mapkey i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px}
+/* kernel weights */
+.kwrap{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+.kgrid{display:grid;grid-template-columns:repeat(var(--k),auto);gap:3px}
+.kgrid span{width:var(--kc,50px);height:var(--kc,50px);display:grid;place-items:center;align-content:center;border-radius:7px;border:1px solid var(--line);font-family:var(--f-mono);font-size:var(--kf,13px);font-weight:600;line-height:1.1;font-variant-numeric:tabular-nums;transition:background .25s}
+.kgrid span small{display:block;font-size:10px;font-weight:600}
+.kgrid span small.up{color:var(--accent)}
+.kgrid span small.dn{color:var(--neg)}
+.kside{display:grid;gap:6px;font-size:13px;color:var(--muted);min-width:0}
+.kside b{color:var(--ink);font-size:15px}
+.kpick{display:flex;align-items:center;gap:8px}
+.kpick button{width:40px;height:40px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font-size:18px;cursor:pointer}
+.kpick output{font-family:var(--f-display);font-size:22px;min-width:3.2em;text-align:center}
+canvas.traj{width:100%;height:160px;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.arch{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px}
+.arch span{border-radius:8px;padding:6px 9px;background:var(--sunk);border:1px solid var(--line);font-weight:600}
+.arch span.c{background:var(--accent-soft);border-color:var(--accent)}
+.arch span.p{background:var(--ok-soft);border-color:var(--ok)}
+.arch i{font-style:normal;color:var(--muted)}
+.codehead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+</style>
+
+<div id="app"></div>
+
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const $=(s,r=document)=>r.querySelector(s);
+const $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const tick=()=>new Promise(r=>setTimeout(r,0));
+const cssv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function shuffle(a,rnd=Math.random){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const argmax=p=>{let b=0;for(let i=1;i<p.length;i++)if(p[i]>p[b])b=i;return b};
+const f4=x=>x.toFixed(4);
+const pyExp=x=>x.toExponential(7).replace(/e([+-])(\d)$/,"e$10$2");
+const ri=(a,b,rnd=Math.random)=>a+Math.floor(rnd()*(b-a+1));
+const nf=n=>n.toLocaleString("en-US");
+function fitCanvas(c,h){const r=c.getBoundingClientRect(),d=window.devicePixelRatio||1;c.width=Math.round(r.width*d);c.height=Math.round((h||r.height)*d);const x=c.getContext("2d");x.setTransform(d,0,0,d,0,0);return{x,w:r.width,h:h||r.height}}
+
+/* ---------- saved progress (this device only) ---------- */
+const KEY="cnnquest.v1";
+const CFG0={K:32,k:3,s:1};
+let S={name:"",prog:{},unlock:false,best:null,cfg:{...CFG0}};
+try{const v=JSON.parse(localStorage.getItem(KEY)||"null");if(v)S=Object.assign(S,v)}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+/* ---------- shapes for a Conv2D(K,(k,k),strides=(s,s)) → MaxPooling2D((2,2)) → Flatten → Dense(64) → Dense(10) model ---------- */
+const outH=(k,s,n=28)=>Math.floor((n-k)/s)+1;
+function shapes(c){const H=outH(c.k,c.s),P=Math.floor(H/2),F=P*P*c.K,pc=(c.k*c.k+1)*c.K,p1=F*64+64,p2=650;return{H,P,F,pc,p1,p2,tot:pc+p1+p2}}
+const cfgLine=c=>`model.add(Conv2D(${c.K}, (${c.k}, ${c.k}), strides=(${c.s}, ${c.s}), activation='relu'))`;
+
+/* ---------- practice digit data (handwriting fonts → MNIST-style 28×28) ---------- */
+const FONTS=[
+ {f:'"Gaegu"',w:700},{f:'"Gaegu"',w:400},{f:'"Nanum Pen Script"',w:400},{f:'"Gamja Flower"',w:400},
+ {f:'"Hi Melody"',w:400},{f:'"Caveat"',w:700},{f:'"Caveat"',w:400},{f:'"Kalam"',w:400},{f:'"Kalam"',w:700},
+ {f:'"Patrick Hand"',w:400},{f:'"Indie Flower"',w:400},{f:'"Shadows Into Light"',w:400},{f:'"Nanum Brush Script"',w:400},
+ {f:'sans-serif',w:400},{f:'sans-serif',w:700}
+];
+let fontsReady=null;
+function loadFonts(){
+  if(fontsReady)return fontsReady;
+  const all=Promise.all(FONTS.map(F=>document.fonts.load(`${F.w} 40px ${F.f}`,"0123456789").catch(()=>null)));
+  fontsReady=Promise.race([all,new Promise(r=>setTimeout(r,5000))]);
+  return fontsReady;
+}
+const SRC=128;
+const srcC=document.createElement("canvas");srcC.width=srcC.height=SRC;
+const srcX=srcC.getContext("2d",{willReadFrequently:true});
+const midC=document.createElement("canvas");midC.width=midC.height=112;
+const midX=midC.getContext("2d",{willReadFrequently:true});
+const c28=document.createElement("canvas");c28.width=c28.height=28;
+const x28=c28.getContext("2d",{willReadFrequently:true});
+function preprocess(src){
+  const w=src.width,h=src.height,d=src.getContext("2d",{willReadFrequently:true}).getImageData(0,0,w,h).data;
+  let x0=w,y0=h,x1=-1,y1=-1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){if(d[(y*w+x)*4]>40){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}}
+  if(x1<0)return null;
+  const bw=x1-x0+1,bh=y1-y0+1,s=80/Math.max(bw,bh),tw=Math.max(4,bw*s),th=Math.max(4,bh*s);
+  midX.setTransform(1,0,0,1,0,0);midX.fillStyle="#000";midX.fillRect(0,0,112,112);
+  midX.imageSmoothingEnabled=true;midX.imageSmoothingQuality="high";
+  midX.drawImage(src,x0,y0,bw,bh,(112-tw)/2,(112-th)/2,tw,th);
+  x28.fillStyle="#000";x28.fillRect(0,0,28,28);x28.imageSmoothingEnabled=true;x28.imageSmoothingQuality="high";
+  x28.drawImage(midC,0,0,112,112,0,0,28,28);
+  const g=x28.getImageData(0,0,28,28).data,a=new Float32Array(784);
+  let m=0,cx=0,cy=0;
+  for(let i=0;i<784;i++){const v=g[i*4]/255;a[i]=v;m+=v;cx+=v*(i%28);cy+=v*Math.floor(i/28)}
+  if(m===0)return null;
+  const dx=Math.round(13.5-cx/m),dy=Math.round(13.5-cy/m),out=new Float32Array(784);
+  for(let y=0;y<28;y++)for(let x=0;x<28;x++){const sx=x-dx,sy=y-dy;if(sx>=0&&sx<28&&sy>=0&&sy<28)out[y*28+x]=a[sy*28+sx]}
+  return out;
+}
+function renderSynth(d,rnd,font){
+  const F=font||FONTS[Math.floor(rnd()*FONTS.length)];
+  srcX.setTransform(1,0,0,1,0,0);srcX.fillStyle="#000";srcX.fillRect(0,0,SRC,SRC);
+  srcX.translate(SRC/2,SRC/2);srcX.rotate((rnd()-.5)*.42);srcX.transform(1,0,(rnd()-.5)*.36,1,0,0);srcX.scale(.8+rnd()*.4,1);
+  const size=62+rnd()*22;
+  srcX.font=`${F.w} ${size}px ${F.f}`;srcX.textAlign="center";srcX.textBaseline="middle";
+  srcX.fillStyle="#fff";srcX.fillText(String(d),0,0);
+  const lw=rnd()*7;
+  if(lw>1){srcX.strokeStyle="#fff";srcX.lineWidth=lw;srcX.lineJoin="round";srcX.strokeText(String(d),0,0)}
+  return preprocess(srcC)||new Float32Array(784);
+}
+const ML={train:null,test:null,model:null,trainAcc:null,traj:[],ord:null,ptr:0,demo:null};
+const N_TRAIN=3000,N_TEST=600;
+let dataP=null;const dataListeners=new Set();
+function ensureData(onProg){
+  if(onProg)dataListeners.add(onProg);
+  if(!dataP)dataP=(async()=>{
+    await loadFonts();
+    const total=N_TRAIN+N_TEST;let done=0;
+    const gen=async(n,seed)=>{const rnd=mulberry32(seed),X=new Float32Array(n*784),Y=new Uint8Array(n);
+      for(let i=0;i<n;i++){const d=i%10;Y[i]=d;X.set(renderSynth(d,rnd),i*784);done++;
+        if(i%80===79){dataListeners.forEach(f=>f(done/total));await tick()}}
+      return{X,Y,n}};
+    ML.train=await gen(N_TRAIN,20261103);
+    const T=await gen(N_TEST,777);
+    const order=shuffle([...Array(N_TEST).keys()],mulberry32(5));
+    const k=order.findIndex(i=>T.Y[i]===7);[order[0],order[k]]=[order[k],order[0]];
+    const X=new Float32Array(N_TEST*784),Y=new Uint8Array(N_TEST);
+    order.forEach((src,i)=>{X.set(T.X.subarray(src*784,src*784+784),i*784);Y[i]=T.Y[src]});
+    ML.test={X,Y,n:N_TEST};
+    dataListeners.forEach(f=>f(1));
+  })();
+  return dataP.then(()=>{if(onProg)dataListeners.delete(onProg)});
+}
+/* a fixed "7" used for every feature-map picture */
+function demo7(){if(!ML.demo)ML.demo=renderSynth(7,mulberry32(11),FONTS[0]);return ML.demo}
+
+/* ---------- one kernel slid over an image (valid padding) ---------- */
+function convMap(w,b,k,s,x,n=28){const H=outH(k,s,n),z=new Float32Array(H*H);
+  for(let i=0;i<H;i++)for(let j=0;j<H;j++){let v=b;for(let u=0;u<k;u++)for(let q=0;q<k;q++)v+=w[u*k+q]*x[(i*s+u)*n+j*s+q];z[i*H+j]=v}
+  return{H,z}}
+const relu=z=>z.map(v=>v>0?v:0);
+function maxPool(a,H){const P=Math.floor(H/2),p=new Float32Array(P*P);
+  for(let i=0;i<P;i++)for(let j=0;j<P;j++)p[i*P+j]=Math.max(a[2*i*H+2*j],a[2*i*H+2*j+1],a[(2*i+1)*H+2*j],a[(2*i+1)*H+2*j+1]);return{P,p}}
+
+/* ---------- a real convolutional neural network ----------
+   Input(28,28,1) → Conv2D(K,(k,k),strides=(s,s),relu) → MaxPooling2D((2,2)) → Flatten → Dense(64,relu) → Dense(10,softmax); adam */
+class CNN{
+  constructor(cfg){
+    this.cfg={K:cfg.K,k:cfg.k,s:cfg.s};const {K,k}=this.cfg,sh=shapes(this.cfg);this.H=sh.H;this.P=sh.P;this.F=sh.F;
+    const glo=(fi,fo,n)=>{const l=Math.sqrt(6/(fi+fo)),a=new Float32Array(n);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*l;return a};
+    this.Wc=glo(k*k,k*k*K,K*k*k);this.bc=new Float32Array(K);
+    this.W1=glo(this.F,64,this.F*64);this.b1=new Float32Array(64);
+    this.W2=glo(64,10,640);this.b2=new Float32Array(10);
+    this.prm=[this.Wc,this.bc,this.W1,this.b1,this.W2,this.b2];
+    this.G=this.prm.map(p=>new Float32Array(p.length));this.M=this.prm.map(p=>new Float32Array(p.length));this.V=this.prm.map(p=>new Float32Array(p.length));this.t=0;
+    this.z=new Float32Array(K*this.H*this.H);this.pl=new Float32Array(this.F);this.pi=new Int32Array(this.F);
+    this.h=new Float32Array(64);this.o=new Float32Array(10);this.dh=new Float32Array(64);this.dd=new Float32Array(10);this.x=null;
+  }
+  get params(){return shapes(this.cfg).tot}
+  forward(x){
+    this.x=x;const {K,k,s}=this.cfg,H=this.H,P=this.P,HH=H*H,PP=P*P,z=this.z,Wc=this.Wc;
+    for(let c=0;c<K;c++){const wo=c*k*k,b=this.bc[c],zo=c*HH;
+      for(let i=0;i<H;i++){const r0=i*s;for(let j=0;j<H;j++){let v=b;const c0=j*s;
+        for(let u=0;u<k;u++){const xo=(r0+u)*28+c0,wu=wo+u*k;for(let q=0;q<k;q++)v+=Wc[wu+q]*x[xo+q]}
+        z[zo+i*H+j]=v}}}
+    const pl=this.pl,pi=this.pi;
+    for(let c=0;c<K;c++){const zo=c*HH,po=c*PP;
+      for(let i=0;i<P;i++)for(let j=0;j<P;j++){let bi=zo+2*i*H+2*j,bv=z[bi];
+        for(let a=0;a<2;a++)for(let q=0;q<2;q++){const id=zo+(2*i+a)*H+2*j+q;if(z[id]>bv){bv=z[id];bi=id}}
+        pl[po+i*P+j]=bv>0?bv:0;pi[po+i*P+j]=bi}}
+    const h=this.h,W1=this.W1;h.set(this.b1);
+    for(let f=0;f<this.F;f++){const v=pl[f];if(v===0)continue;const o=f*64;for(let n=0;n<64;n++)h[n]+=v*W1[o+n]}
+    for(let n=0;n<64;n++)if(h[n]<0)h[n]=0;
+    const o=this.o,W2=this.W2;o.set(this.b2);
+    for(let j=0;j<64;j++){const v=h[j];if(v===0)continue;const oo=j*10;for(let n=0;n<10;n++)o[n]+=v*W2[oo+n]}
+    let mx=-1e30;for(let n=0;n<10;n++)if(o[n]>mx)mx=o[n];let sm=0;for(let n=0;n<10;n++){o[n]=Math.exp(o[n]-mx);sm+=o[n]}for(let n=0;n<10;n++)o[n]/=sm;
+    return o;
+  }
+  backward(y){
+    const {k,s}=this.cfg,H=this.H,HH=H*H,x=this.x,o=this.o,h=this.h,dh=this.dh,d=this.dd,pl=this.pl,pi=this.pi,W1=this.W1,W2=this.W2;
+    const [gWc,gbc,gW1,gb1,gW2,gb2]=this.G;
+    for(let n=0;n<10;n++)d[n]=o[n];d[y]-=1;
+    for(let n=0;n<10;n++)gb2[n]+=d[n];
+    for(let j=0;j<64;j++){const hj=h[j];if(hj<=0){dh[j]=0;continue}const oo=j*10;let sm=0;for(let n=0;n<10;n++){gW2[oo+n]+=hj*d[n];sm+=W2[oo+n]*d[n]}dh[j]=sm}
+    for(let n=0;n<64;n++)gb1[n]+=dh[n];
+    for(let f=0;f<this.F;f++){const v=pl[f];if(v===0)continue;const o1=f*64;let sm=0;
+      for(let n=0;n<64;n++){gW1[o1+n]+=v*dh[n];sm+=W1[o1+n]*dh[n]}
+      const id=pi[f],c=(id/HH)|0,r=id-c*HH,i=(r/H)|0,j=r-i*H,wo=c*k*k;gbc[c]+=sm;
+      for(let u=0;u<k;u++){const xo=(i*s+u)*28+j*s,wu=wo+u*k;for(let q=0;q<k;q++)gWc[wu+q]+=sm*x[xo+q]}}
+  }
+  step(bs,lr=0.001){
+    this.t++;const b1=.9,b2=.999,c1=1-Math.pow(b1,this.t),c2=1-Math.pow(b2,this.t);
+    for(let l=0;l<this.prm.length;l++){const P=this.prm[l],G=this.G[l],M=this.M[l],V=this.V[l];
+      for(let q=0;q<P.length;q++){const g=G[q]/bs;M[q]=b1*M[q]+(1-b1)*g;V[q]=b2*V[q]+(1-b2)*g*g;P[q]-=lr*(M[q]/c1)/(Math.sqrt(V[q]/c2)+1e-7);G[q]=0}}
+  }
+  predict(x){return Float32Array.from(this.forward(x))}
+  kernel(c){const k=this.cfg.k;return this.Wc.slice(c*k*k,(c+1)*k*k)}
+  map(x,c){const {k,s}=this.cfg;return convMap(this.kernel(c),this.bc[c],k,s,x)}
+}
+async function fit(model,D,epochs,{bs=32,onBatch,onEpoch,onStep,alive}={}){
+  const N=D.n,idx=[...Array(N).keys()],steps=Math.ceil(N/bs),hist=[];
+  for(let e=0;e<epochs;e++){
+    const ord=shuffle(idx);let loss=0,corr=0,seen=0,last=performance.now();const t0=last;
+    for(let s=0;s<steps;s++){
+      const st=s*bs,en=Math.min(N,st+bs);
+      for(let k=st;k<en;k++){const i=ord[k],x=D.X.subarray(i*784,i*784+784),p=model.forward(x),y=D.Y[i];
+        loss+=-Math.log(p[y]+1e-7);if(argmax(p)===y)corr++;seen++;model.backward(y)}
+      model.step(en-st);onStep&&onStep();
+      if(performance.now()-last>45){if(alive&&!alive())throw new Error("stopped");onBatch&&onBatch(e,s+1,steps,loss/seen,corr/seen);await tick();last=performance.now()}
+    }
+    onBatch&&onBatch(e,steps,steps,loss/seen,corr/seen);
+    hist.push({loss:loss/seen,acc:corr/seen,sec:(performance.now()-t0)/1000});
+    onEpoch&&onEpoch(e,hist);await tick();
+  }
+  return hist;
+}
+function evaluate(model,D){let loss=0,corr=0;for(let i=0;i<D.n;i++){const p=model.forward(D.X.subarray(i*784,i*784+784));loss+=-Math.log(p[D.Y[i]]+1e-7);if(argmax(p)===D.Y[i])corr++}return{loss:loss/D.n,acc:corr/D.n}}
+const kbar=(s,n)=>{const w=30,f=Math.round(w*s/n);return "["+"=".repeat(Math.max(0,f-(s<n?1:0)))+(s<n?">":"")+".".repeat(w-f)+"]"};
+function drawDigit(canvas,arr,scale){const z=scale||1;canvas.width=28*z;canvas.height=28*z;const x=canvas.getContext("2d"),im=x.createImageData(28,28);for(let i=0;i<784;i++){const v=Math.round(arr[i]*255);im.data[i*4]=im.data[i*4+1]=im.data[i*4+2]=v;im.data[i*4+3]=255}if(z===1){x.putImageData(im,0,0)}else{c28.getContext("2d").putImageData(im,0,0);x.imageSmoothingEnabled=false;x.drawImage(c28,0,0,28*z,28*z)}}
+const sampleOf=(D,i)=>D.X.subarray(i*784,i*784+784);
+/* feature map picture: "div" = orange(+)/blue(−) on black, "gray" = brightness */
+function drawMap(cv,vals,n,mode,maxAbs){
+  const t=document.createElement("canvas");t.width=t.height=n;const x=t.getContext("2d"),im=x.createImageData(n,n);
+  let m=maxAbs||1e-6;if(!maxAbs)for(const v of vals)m=Math.max(m,Math.abs(v));
+  for(let i=0;i<n*n;i++){const v=vals[i]/m;let r,g,b;
+    if(mode==="div"){if(v>=0){r=255*v;g=139*v;b=62*v}else{r=90*-v;g=160*-v;b=255*-v}}else{r=g=b=Math.max(0,Math.min(1,v))*255}
+    im.data[i*4]=r;im.data[i*4+1]=g;im.data[i*4+2]=b;im.data[i*4+3]=255}
+  x.putImageData(im,0,0);const Z=Math.max(1,Math.ceil(168/n));cv.width=cv.height=n*Z;const y=cv.getContext("2d");y.imageSmoothingEnabled=false;y.drawImage(t,0,0,n*Z,n*Z);return Z;
+}
+const wcol=(v,m)=>{const a=Math.min(.85,Math.abs(v)/(m||1)*.85).toFixed(3);return v>=0?`rgba(238,100,24,${a})`:`rgba(47,111,214,${a})`};
+function kgridHTML(w,k,prev){
+  let m=1e-6;for(const v of w)m=Math.max(m,Math.abs(v));
+  const cs=k<=3?50:34,kf=k<=3?13:10.5;
+  return `<div class="kgrid" style="--k:${k};--kc:${cs}px;--kf:${kf}px">${Array.from(w).map((v,i)=>{const d=prev?v-prev[i]:0;
+    return `<span style="background:${wcol(v,m)}">${v.toFixed(2)}${prev&&Math.abs(d)>=0.0005?`<small class="${d>0?"up":"dn"}">${d>0?"▲":"▼"}${Math.abs(d).toFixed(3)}</small>`:prev?`<small>&nbsp;</small>`:""}</span>`}).join("")}</div>`;
+}
+const mapKey=`<div class="mapkey"><span><i style="background:rgb(255,139,62)"></i>양수(+)</span><span><i style="background:rgb(90,160,255)"></i>음수(−)</span><span><i style="background:#000;border:1px solid var(--line)"></i>0</span></div>`;
+
+/* ---------- python code (viewable) ---------- */
+function pyPlain(c,E){c=c||S.cfg;E=E||3;return `# 단계 2. 데이터 수집 및 전처리
+from tensorflow import keras   # tensorflow에서 keras 모듈 가져오기
+mnist = keras.datasets.mnist   # mnist 데이터셋 가져오기
+(X_train, y_train), (X_test, y_test) = mnist.load_data()
+
+X_train = X_train/255.0   # 데이터 정규화하기(0~1)
+X_test = X_test/255.0
+
+# 합성곱 층에 넣기 위해 (가로, 세로, 채널) 모양으로 바꾸기 (흑백은 채널 1개)
+X_train = X_train.reshape(60000, 28, 28, 1)
+X_test = X_test.reshape(10000, 28, 28, 1)
+
+# 단계 3. 합성곱 신경망 모델 생성
+from keras.models import Sequential
+from keras.layers import Dense, Flatten, Input, Conv2D, MaxPooling2D
+
+model = Sequential()
+model.add(Input(shape=(28, 28, 1)))
+# 합성곱 층: 커널 ${c.K}개, 커널 크기 (${c.k}, ${c.k}), 스트라이드 (${c.s}, ${c.s}), 활성화 함수 relu
+${cfgLine(c)}
+# 최대 풀링 층: 2×2 영역에서 가장 큰 값만 남기기
+model.add(MaxPooling2D((2, 2)))
+model.add(Flatten())   # 특징 맵을 1차원 배열로 펴기
+model.add(Dense(64, activation='relu'))
+model.add(Dense(10, activation='softmax'))
+model.summary()
+
+model.compile(loss='sparse_categorical_crossentropy', optimizer='adam',
+              metrics=['accuracy'])
+model.fit(X_train, y_train, epochs=${E})
+
+# 단계 4. 평가 및 예측
+model.evaluate(X_test, y_test)
+pred = model.predict(X_test)
+
+import numpy as np
+np.argmax(pred[0])   # 0번 테스트 데이터의 예측 숫자`}
+function hiPy(src){return src.split("\n").map(line=>{const h=line.indexOf("#");const code=h>=0?line.slice(0,h):line,com=h>=0?line.slice(h):"";
+  let c=esc(code).replace(/'[^']*'/g,m=>`<span class="s">${m}</span>`).replace(/\b(from|import|as)\b/g,m=>`<span class="k">${m}</span>`);
+  return c+(com?`<span class="c">${esc(com)}</span>`:"")}).join("\n")}
+
+/* ---------- levels ---------- */
+const C=s=>`<span class="c">${s}</span>`,K=s=>`<span class="k">${s}</span>`,Q=s=>`<span class="s">${s}</span>`;
+const LEVELS=[
+{id:1,stage:"단계 1",intro:true,title:"신경망에서 합성곱 신경망으로",goal:"설명 보기 · 지난 숫자 분류 모델에 무엇을 더할까?",
+ learned:"합성곱 신경망(CNN)은 합성곱 층(특징 찾기) → 활성화 함수 → 풀링 층(요약하기)을 거친 다음, Flatten과 Dense로 분류해요. 교과서의 VGG16 안에도 Conv2D와 MaxPooling2D 층이 들어 있어요.",
+ steps:[
+ {type:"info",title:"오늘 만들 모델",html:`<p class="lead">지난 퀘스트에서는 숫자 그림을 한 줄(784개)로 편 다음 Dense 층으로 분류했어요. 오늘은 그 앞에 <b>합성곱 층</b>과 <b>풀링 층</b>을 더해 <b>합성곱 신경망(CNN)</b>으로 같은 손글씨 숫자를 분류해요.</p>
+  <div class="card stage" style="padding:14px"><b>지난 퀘스트 (신경망)</b>
+  <div class="arch"><span>입력 28×28</span><i>→</i><span>Flatten 784</span><i>→</i><span>Dense 128</span><i>→</i><span>Dense 64</span><i>→</i><span>Dense 10</span></div>
+  <b>오늘 퀘스트 (합성곱 신경망)</b>
+  <div class="arch"><span>입력 28×28×1</span><i>→</i><span class="c">Conv2D 합성곱</span><i>→</i><span class="p">MaxPooling2D 풀링</span><i>→</i><span>Flatten</span><i>→</i><span>Dense 64</span><i>→</i><span>Dense 10</span></div></div>
+  <div class="card tablebox"><table class="t"><tbody>
+  <tr><td><b>단계 1</b> 문제 정의</td><td>합성곱 신경망으로 손으로 쓴 숫자 분류하기</td></tr>
+  <tr><td><b>단계 2</b> 데이터 수집 및 전처리</td><td>load_data, 정규화, reshape</td></tr>
+  <tr><td><b>단계 3</b> 모델 생성</td><td>설계(Sequential, add), 환경 설정(compile), 학습(fit)</td></tr>
+  <tr><td><b>단계 4</b> 평가 및 예측</td><td>평가(evaluate), 예측(predict)</td></tr></tbody></table></div>`},
+ {type:"info",title:"교과서 합성곱 모델과 비교해요",html:`<p class="lead">교과서 실습(균열 이미지 분류)은 이미 학습된 합성곱 모델 <b>VGG16</b>을 가져와 쌓았어요.</p>
+  <pre class="code">${C("# 교과서: 균열 이미지 분류 (64×64 컬러)")}
+model = Sequential()
+model.add(Input(shape=(64, 64, 3)))
+model.add(vgg)
+model.add(Flatten())
+model.add(Dense(64, activation=${Q("'relu'")}))
+model.add(Dense(2, activation=${Q("'softmax'")}))</pre>
+  <p class="lead">vgg.summary()로 VGG16 안을 들여다보면 <code>Conv2D</code>(합성곱 층)와 <code>MaxPooling2D</code>(최대 풀링 층)가 여러 개 쌓여 있어요. 오늘은 이 두 층을 <b>직접 하나씩</b> 넣어서 숫자 분류 모델을 만들어요.</p>
+  <pre class="code">${C("# 오늘: 손글씨 숫자 분류 (28×28 흑백)")}
+model = Sequential()
+model.add(Input(shape=(28, 28, 1)))
+<span class="n">model.add(Conv2D(32, (3, 3), strides=(1, 1), activation=${Q("'relu'")}))</span>
+<span class="n">model.add(MaxPooling2D((2, 2)))</span>
+model.add(Flatten())
+model.add(Dense(64, activation=${Q("'relu'")}))
+model.add(Dense(10, activation=${Q("'softmax'")}))</pre>
+  <p class="lead">Sequential, add, Input, Flatten, Dense는 교과서와 똑같이 써요. 바뀐 곳은 vgg 자리에 들어간 두 줄과, 출력층 노드 수(숫자 0~9이므로 10개)예요.</p>`},
+ {type:"info",title:"왜 합성곱을 쓸까요?",html:`<p class="lead">그림을 한 줄로 펴서 바로 Dense에 넣으면, 어떤 픽셀끼리 <b>이웃</b>인지를 모델이 활용하기 어려워요. 합성곱 층은 <b>커널</b>이라는 작은 창으로 그림을 훑으면서 선, 모서리 같은 <b>무늬(특징)</b>를 찾아요.</p>
+  <div class="card tablebox"><table class="t"><tbody>
+  <tr><td><b>합성곱 층</b><br>Conv2D</td><td>커널로 그림을 훑어 특징 맵을 만들어요. <b>커널의 값이 곧 가중치</b>이고, 학습으로 찾아요.</td></tr>
+  <tr><td><b>활성화 함수</b><br>relu</td><td>특징 맵의 음수는 0으로, 양수는 그대로 바꿔요.</td></tr>
+  <tr><td><b>풀링 층</b><br>MaxPooling2D</td><td>찾은 특징을 요약해서 특징 맵의 크기를 줄여요.</td></tr>
+  <tr><td><b>완전 연결 층</b><br>Flatten, Dense</td><td>펴진 특징으로 0~9 중 하나를 골라요.</td></tr></tbody></table></div>
+  <p class="lead">같은 커널(같은 가중치)을 그림 전체에서 다시 쓰기 때문에, 합성곱 층의 가중치는 아주 적어요. 3×3 커널 32개라면 (9+1)×32 = <b>320개</b>뿐이에요.</p>`}
+]},
+{id:2,stage:"단계 2",intro:true,title:"데이터 준비하기",goal:"설명 보기 · 불러오기, 정규화, reshape로 채널 만들기",
+ learned:"합성곱 층에는 (가로, 세로, 채널) 모양으로 넣어야 해요. 흑백 숫자는 채널이 1개라서 reshape(60000, 28, 28, 1)로 바꿔요. 교과서의 컬러 이미지는 (64, 64, 3)이었어요.",
+ steps:[
+ {type:"info",title:"불러오고 정규화하기 (지난 퀘스트와 같아요)",html:`<pre class="code">${K("from")} tensorflow ${K("import")} keras
+mnist = keras.datasets.mnist
+(X_train, y_train), (X_test, y_test) = mnist.load_data()
+X_train = X_train/255.0   ${C("# 데이터 정규화하기(0~1)")}
+X_test = X_test/255.0</pre>
+  <p class="lead">픽셀값 0~255를 255.0으로 나눠 0~1 사이로 바꾸는 것까지는 지난 퀘스트와 같아요.</p>`},
+ {type:"info",title:"채널 1개 더하기: reshape",html:`<p class="lead">합성곱 층은 그림을 <b>(가로, 세로, 채널)</b> 모양으로 받아요. 채널은 색깔 판의 수예요.</p>
+  <div class="card tablebox"><table class="t"><thead><tr><th>그림</th><th class="n">모양</th></tr></thead><tbody>
+  <tr><td>교과서 균열 이미지 (컬러: R, G, B)</td><td class="n">(64, 64, 3)</td></tr>
+  <tr><td>MNIST 숫자 (흑백)</td><td class="n">(28, 28, 1)</td></tr></tbody></table></div>
+  <pre class="code">${C("# (60000, 28, 28) → (60000, 28, 28, 1)")}
+X_train = X_train.reshape(60000, 28, 28, 1)
+X_test = X_test.reshape(10000, 28, 28, 1)</pre>
+  <p class="lead">값은 하나도 바뀌지 않고, 맨 뒤에 '채널 1개'라는 칸만 생겨요. 그래서 입력층도 <code>Input(shape=(28, 28, 1))</code>로 써요.</p>`},
+ {type:"custom",mount:mountLoad}
+]},
+{id:3,stage:"단계 3",title:"합성곱 층 설정하기",goal:"커널의 크기·개수, 스트라이드를 정해요",
+ learned:"Conv2D(커널 개수, (커널 크기), strides=(스트라이드)). 특징 맵 크기 = (입력 − 커널) ÷ 스트라이드 + 1 (소수점 버림). 커널 개수만큼 특징 맵이 생겨요.",
+ steps:[
+ {type:"info",title:"커널, 스트라이드, 특징 맵",html:`<div class="card tablebox"><table class="t"><tbody>
+  <tr><td><b>커널</b></td><td>그림 위를 움직이며 무늬를 찾는 작은 창. 칸마다 적힌 숫자가 <b>가중치</b>예요.</td></tr>
+  <tr><td><b>커널 크기</b></td><td>창의 크기. (3, 3)이면 3×3칸을 한 번에 봐요.</td></tr>
+  <tr><td><b>커널 개수</b></td><td>찾을 무늬의 가짓수. 커널 하나당 특징 맵이 한 장 생겨요.</td></tr>
+  <tr><td><b>스트라이드</b></td><td>커널이 한 번에 움직이는 칸 수. (2, 2)면 두 칸씩 건너뛰어요.</td></tr>
+  <tr><td><b>특징 맵</b></td><td>커널이 지나가며 계산한 값을 모은 결과.</td></tr></tbody></table></div>
+  <pre class="code">${C("# 커널 개수, (커널 크기), strides=(스트라이드)")}
+model.add(Conv2D(32, (3, 3), strides=(1, 1), activation=${Q("'relu'")}))</pre>`},
+ {type:"custom",mount:mountSlide},
+ {type:"mcq",q:"28×28 그림에 3×3 커널을 스트라이드 1로 움직이면, 특징 맵의 크기는?",opts:["28×28","26×26","25×25","9×9"],a:1,ex:"(28 − 3) ÷ 1 + 1 = 26이에요. 커널이 그림 밖으로 나가지 않으니 가장자리에서 2칸이 줄어요."},
+ {type:"mcq",q:"같은 28×28 그림에 3×3 커널을 스트라이드 2로 움직이면?",opts:["26×26","14×14","13×13","12×12"],a:2,ex:"(28 − 3) ÷ 2 + 1 = 13.5 → 소수점을 버려서 13×13이에요. 스트라이드가 커지면 특징 맵이 작아져요."},
+ {type:"mcq",q:"커널을 32개 사용하면 특징 맵은 몇 장 생길까요?",opts:["1장","3장","9장","32장"],a:3,ex:"커널 하나가 특징 맵 한 장을 만들어요. 커널마다 서로 다른 무늬를 찾아요."},
+ {type:"fill",q:"설명대로 합성곱 층 코드를 완성하세요.",
+  lines:[C("# 커널 32개, 커널 크기 3×3, 스트라이드 1, 활성화 함수 relu"),`model.add(Conv2D({{0}}, {{1}}, strides={{2}}, activation=${Q("'{{3}}'")}))`],
+  ans:["32","(3, 3)","(1, 1)","relu"],bank:["32","3","(3, 3)","(1, 1)","(2, 2)","relu","softmax"],ex:"Conv2D 안의 순서는 커널 개수 → (커널 크기) → strides=(스트라이드) → 활성화 함수예요."},
+ {type:"mcq",q:"3×3 커널 32개를 쓰는 합성곱 층의 가중치(편향 포함)는 몇 개일까요?",opts:["32개","288개","320개","25,088개"],a:2,ex:"커널 하나에 가중치 9개 + 편향 1개 = 10개, 32개면 320개예요. 그림이 커져도 이 수는 그대로예요."},
+ {type:"custom",mount:mountConfig}
+]},
+{id:4,stage:"단계 3",title:"커널 계산과 활성화 함수",goal:"곱해서 더하기, relu로 특징 맵 바꾸기",
+ learned:"커널 값과 그림 값을 같은 자리끼리 곱해서 모두 더하면 특징 맵의 한 칸이 돼요. relu는 음수를 0으로, 양수는 그대로 두어 '무늬가 있는 곳'만 남겨요.",
+ steps:[
+ {type:"info",title:"커널은 곱해서 더해요",html:`<p class="lead">커널을 그림 위에 겹친 다음, <b>같은 자리끼리 곱해서 모두 더하면</b> 특징 맵의 한 칸이 나와요.</p>
+  <div class="card stage" style="padding:14px"><div class="gq">
+   <div class="gp"><span class="note">그림 일부</span><div class="mg" style="--c:3;--cs:34px">${[0,1,0,0,1,0,0,1,0].map(v=>`<span class="mc">${v}</span>`).join("")}</div></div><span class="garr">×</span>
+   <div class="gp"><span class="note">커널</span><div class="mg" style="--c:3;--cs:34px">${[-1,1,-1,-1,1,-1,-1,1,-1].map(v=>`<span class="mc ${v<0?"neg":""}">${v}</span>`).join("")}</div></div><span class="garr">=</span>
+   <div class="gp"><span class="note">결과</span><div class="mg" style="--c:1;--cs:40px"><span class="mc">3</span></div></div></div>
+   <p class="calc">0×(−1) + 1×1 + 0×(−1) + 0×(−1) + 1×1 + 0×(−1) + 0×(−1) + 1×1 + 0×(−1) = <b>3</b></p></div>
+  <p class="lead">이 커널은 가운데 세로줄이 밝을수록 큰 값을 내요. 커널의 숫자 배치가 <b>어떤 무늬를 찾을지</b>를 정해요.</p>`},
+ {type:"grid",rounds:2,q:"커널을 겹쳐 곱해서 더한 값을 구하세요.",lead:"같은 자리끼리 곱한 다음 모두 더해요. 0이 있는 칸은 곱하면 0이에요.",make:mkConvQ},
+ {type:"info",title:"활성화 함수 relu",html:`<p class="lead">합성곱 층의 <code>activation=${"'relu'"}</code>는 특징 맵의 모든 칸에 relu를 적용해요.</p>
+  <div class="card tablebox"><table class="t"><thead><tr><th>특징 맵 값</th><th class="n">relu 후</th></tr></thead><tbody>
+  <tr><td>음수 (예: −4)</td><td class="n">0</td></tr><tr><td>0</td><td class="n">0</td></tr><tr><td>양수 (예: 5)</td><td class="n">5 (그대로)</td></tr></tbody></table></div>
+  <p class="lead">커널이 찾는 무늬와 반대인 곳은 음수가 나와요. relu는 이런 곳을 0(검은색)으로 지워서 <b>무늬를 찾은 곳만 밝게</b> 남겨요.</p>`},
+ {type:"custom",mount:mountRelu},
+ {type:"grid",rounds:2,q:"특징 맵에 relu를 적용한 결과를 채우세요.",lead:"음수는 0, 0과 양수는 그대로예요.",make:mkReluQ},
+ {type:"mcq",q:"특징 맵에 relu를 적용하면 그림은 어떻게 바뀔까요?",opts:["모든 칸이 0이 된다","음수였던 칸은 0(검은색)이 되고, 양수였던 칸은 그대로 남는다","양수였던 칸이 음수로 바뀐다","특징 맵의 크기가 반으로 줄어든다"],a:1,ex:"relu는 크기를 바꾸지 않아요. 크기를 줄이는 건 다음 레벨의 풀링 층이에요."}
+]},
+{id:5,stage:"단계 3",title:"최대 풀링 층",goal:"2×2 영역에서 가장 큰 값 고르기",
+ learned:"MaxPooling2D((2, 2))는 특징 맵을 2×2칸씩 나눠 가장 큰 값만 남겨요. 가로·세로가 반으로 줄고(소수점 버림), 특징 맵의 장수는 그대로예요. 풀링 층에는 학습할 가중치가 없어요.",
+ steps:[
+ {type:"info",title:"최대 풀링이란?",html:`<p class="lead">풀링 층은 찾은 특징을 <b>요약</b>해서 특징 맵의 크기를 줄여요. <b>최대 풀링</b>은 2×2칸씩 묶어 그중 <b>가장 큰 값</b>만 남겨요.</p>
+  <div class="card stage" style="padding:14px"><div class="gq">
+   <div class="gp"><span class="note">특징 맵 (4×4)</span><div class="mg" style="--c:4;--cs:34px">${[1,3,0,2, 5,2,1,1, 0,0,4,6, 2,1,3,0].map((v,i)=>`<span class="mc q${(Math.floor(i/8))*2+Math.floor((i%4)/2)}">${v}</span>`).join("")}</div></div><span class="garr">→</span>
+   <div class="gp"><span class="note">최대 풀링 (2×2)</span><div class="mg" style="--c:2;--cs:40px">${[5,2,2,6].map((v,i)=>`<span class="mc q${i}">${v}</span>`).join("")}</div></div></div></div>
+  <pre class="code">${C("# 2×2 영역에서 가장 큰 값만 남기기")}
+model.add(MaxPooling2D((2, 2)))</pre>
+  <p class="lead">같은 색 칸끼리 한 묶음이에요. 가장 강한 특징 신호를 남기기 때문에, 숫자가 조금 옮겨져 써져도 비슷한 결과가 나와요.</p>`},
+ {type:"custom",mount:mountPoolViz},
+ {type:"grid",rounds:3,q:"최대 풀링 결과를 구하세요.",lead:"빈칸을 누르면 그 칸이 보는 2×2 영역이 표시돼요.",make:mkPoolQ},
+ {type:"grid",rounds:1,q:"도전! relu를 적용한 다음 최대 풀링을 하면?",lead:"합성곱 층(relu) → 풀링 층 순서대로 계산해요. 2×2 영역이 모두 음수면 어떻게 될까요?",make:mkReluPoolQ},
+ {type:"mcq",q:"26×26 특징 맵 32장에 MaxPooling2D((2, 2))를 적용하면?",opts:["13×13 특징 맵 32장","26×26 특징 맵 16장","13×13 특징 맵 16장","24×24 특징 맵 32장"],a:0,ex:"풀링은 가로·세로만 반으로 줄이고, 특징 맵의 장수(커널 개수)는 그대로예요."},
+ {type:"fill",q:"최대 풀링 층 코드를 완성하세요.",
+  lines:[C("# 최대 풀링 층: 2×2 영역에서 가장 큰 값만 남기기"),"model.add({{0}}({{1}}))"],
+  ans:["MaxPooling2D","(2, 2)"],bank:["MaxPooling2D","Conv2D","Flatten","(2, 2)","(3, 3)"],ex:"MaxPooling2D((2, 2))는 학습할 가중치가 없어서 model.summary()에서 Param #이 0이에요."}
+]},
+{id:6,stage:"단계 3",title:"모델 완성하고 설정하기",goal:"층 쌓기, summary로 확인, compile",
+ learned:"Input → Conv2D → MaxPooling2D → Flatten → Dense(64) → Dense(10). model.summary()로 층마다 출력 모양과 가중치 수를 확인하고, compile로 손실함수·최적화 함수·평가 지표를 정해요.",
+ steps:[
+ ()=>{const c=S.cfg;return {type:"fill",q:"레벨 3에서 정한 설정으로 합성곱 신경망을 완성하세요.",
+  lines:[`${K("from")} keras.models ${K("import")} Sequential`,`${K("from")} keras.layers ${K("import")} Dense, Flatten, Input, Conv2D, MaxPooling2D`,"model = {{0}}()","model.add({{1}}(shape=(28, 28, 1)))",C(`# 합성곱 층 (커널 ${c.K}개, ${c.k}×${c.k}, 스트라이드 ${c.s})`),`model.add({{2}}(${c.K}, (${c.k}, ${c.k}), strides=(${c.s}, ${c.s}), activation=${Q("'relu'")}))`,C("# 최대 풀링 층"),"model.add({{3}}((2, 2)))",C("# 특징 맵을 1차원 배열로 펴기"),"model.add({{4}}())",`model.add(Dense(64, activation=${Q("'relu'")}))`,`model.add(Dense(10, activation=${Q("'softmax'")}))`],
+  ans:["Sequential","Input","Conv2D","MaxPooling2D","Flatten"],bank:["Sequential","Input","Conv2D","MaxPooling2D","Flatten","Dense"],ex:"교과서에서 vgg가 있던 자리에 Conv2D와 MaxPooling2D가 들어갔어요."}},
+ {type:"custom",mount:mountSummary},
+ {type:"mcq",q:"합성곱 신경망에서 Flatten은 어떤 일을 할까요?",opts:["커널로 무늬를 찾는다","풀링을 거친 특징 맵들을 1차원 배열로 펴서 Dense 층에 넣는다","음수를 0으로 바꾼다","그림의 크기를 28×28로 맞춘다"],a:1,ex:"합성곱·풀링 층이 이웃 픽셀 관계로 특징을 먼저 뽑아 두었기 때문에, 그다음에 펴도 괜찮아요."},
+ {type:"fill",q:"학습 환경을 설정하세요. (지난 퀘스트와 같아요)",
+  lines:["model.compile(",`  loss=${Q("'{{0}}'")},`,`  optimizer=${Q("'{{1}}'")},`,`  metrics=[${Q("'{{2}}'")}])`],
+  ans:["sparse_categorical_crossentropy","adam","accuracy"],bank:["sparse_categorical_crossentropy","adam","accuracy","relu","softmax"],
+  ex:"교과서는 정답을 [1, 0]처럼 원-핫 형태로 받아 categorical_crossentropy를 썼어요. MNIST의 y는 0~9 정수라서 sparse_categorical_crossentropy를 써요."}
+]},
+{id:7,stage:"단계 3",title:"학습하며 커널 가중치 찾기",goal:"커널 하나의 가중치가 바뀌는 과정 지켜보기",
+ learned:"커널 값(가중치)은 처음엔 무작위예요. 학습할 때마다 손실을 줄이는 방향으로 조금씩 고쳐지고, 그 결과 커널이 숫자를 구별하는 데 쓸모 있는 무늬를 찾게 돼요.",
+ steps:[
+ {type:"info",title:"커널 가중치는 누가 정할까요?",html:`<p class="lead">레벨 4에서 본 세로선, 윤곽선 커널은 사람이 직접 설계한 커널이었어요. 합성곱 신경망은 커널 값을 <b>처음엔 무작위로</b> 정해 두고, 학습하면서 <b>스스로 찾아요</b>.</p>
+  <div class="card tablebox"><table class="t"><tbody>
+  <tr><td>① 예측하기</td><td>지금 커널로 특징 맵을 만들어 숫자를 예측해요.</td></tr>
+  <tr><td>② 틀린 정도 재기</td><td>정답과 비교해 손실(loss)을 계산해요.</td></tr>
+  <tr><td>③ 가중치 고치기</td><td>손실이 줄어드는 방향으로 커널 값을 조금씩 바꿔요. (adam)</td></tr></tbody></table></div>
+  <p class="lead">32장(1 배치)을 볼 때마다 ①~③을 한 번 해요. 다음 화면에서 <b>커널 하나</b>를 골라 가중치가 어떻게 바뀌는지 지켜봐요.</p>`},
+ {type:"custom",mount:mountKernelTrain},
+ {type:"mcq",q:"학습하는 동안 커널의 가중치는 어떻게 바뀌었나요?",opts:["처음 정한 값 그대로였다","손실을 줄이는 방향으로 배치마다 조금씩 바뀌었다","매번 완전히 새로운 무작위 값으로 바뀌었다","모두 0이 되었다"],a:1,ex:"한 번에 아주 조금씩 바뀌지만, 수백 번 쌓이면 커널이 찾는 무늬가 달라져요."},
+ {type:"mcq",q:"커널 하나는 그림의 어디에 사용될까요?",opts:["그림의 왼쪽 위 한 곳에만","그림의 모든 위치에서 같은 가중치로 사용된다","위치마다 다른 가중치로 사용된다","숫자 7에만 사용된다"],a:1,ex:"같은 커널이 그림 전체를 훑어요(가중치 공유). 그래서 합성곱 층은 가중치가 적고, 숫자가 어디에 있든 같은 무늬를 찾을 수 있어요."}
+]},
+{id:8,stage:"단계 4",title:"평가하고 예측하기",goal:"evaluate()로 시험 보고 predict()로 예측하기",
+ learned:"evaluate()는 처음 보는 테스트 데이터로 손실과 정확도를 재요. predict()는 0~9 각각의 확률을 주고, np.argmax()로 가장 큰 값의 인덱스를 찾아 예측해요.",
+ steps:[
+ {type:"fill",q:"모델을 평가하고 예측하는 코드를 완성하세요.",
+  lines:[`model.{{0}}(X_test, y_test)   ${C("# 모델 평가하기")}`,`pred = model.{{1}}(X_test)   ${C("# 테스트 데이터 예측하기")}`,`np.{{2}}(pred[0])   ${C("# 가장 큰 값의 인덱스 찾기")}`],
+  ans:["evaluate","predict","argmax"],bank:["evaluate","predict","argmax","fit","compile","reshape"],ex:"교과서에서도 model.evaluate(test_set), model.predict(test_set), np.argmax()를 썼어요."},
+ {type:"custom",mount:mountEval},
+ {type:"custom",mount:mountPredict},
+ {type:"mcq",q:"softmax를 거친 출력층 10개 값을 모두 더하면 얼마일까요?",opts:["0","1","10","784"],a:1,ex:"softmax는 10개 값의 합이 1이 되도록 바꿔서 확률처럼 읽을 수 있게 해 줘요."}
+]},
+{id:9,stage:"단계 4",title:"내 숫자 분류하기",goal:"직접 쓴 숫자의 특징 맵 보고 분류하기",
+ learned:"내가 쓴 숫자도 28×28로 바꿔 합성곱 층의 커널들이 각자 특징 맵을 만들고, 풀링과 Dense 층을 거쳐 예측해요.",
+ steps:[
+ {type:"custom",mount:mountDraw},
+ {type:"mcq",q:"합성곱 신경망의 층별 역할을 바르게 짝지은 것은?",opts:["합성곱 층: 크기 줄이기 / 풀링 층: 특징 찾기","합성곱 층: 특징 찾기 / 풀링 층: 특징 요약(크기 줄이기)","합성곱 층: 확률 계산 / 풀링 층: 1차원으로 펴기","합성곱 층과 풀링 층 모두 가중치를 학습한다"],a:1,ex:"합성곱 층은 커널(가중치)로 특징을 찾고, 풀링 층은 가중치 없이 특징을 요약해요. 확률 계산은 마지막 Dense(softmax) 층이 해요."}
+]}
+];
+const GROUPS=[{t:"단계 1·2",s:"문제 정의 · 데이터 준비",ids:[1,2]},{t:"단계 3",s:"합성곱 신경망 모델 생성",ids:[3,4,5,6,7]},{t:"단계 4",s:"모델 평가와 예측",ids:[8,9]}];
+
+/* ---------- quiz generators ---------- */
+function mkConvQ(){
+  let p,w,sum;
+  do{p=Array.from({length:9},()=>ri(0,2));w=Array.from({length:9},()=>[-1,0,1,1,2][ri(0,4)]);sum=p.reduce((s,v,i)=>s+v*w[i],0)}while(sum<2||sum>12||w.filter(v=>v<0).length<2);
+  return{panels:[{label:"그림 일부",cols:3,vals:p,sep:"×"},{label:"커널 (가중치)",cols:3,vals:w,sep:"="}],
+    ans:{label:"결과",cols:1,vals:[sum]},region:()=>[[0,"all"],[1,"all"]],
+    ex:`${p.map((v,i)=>`${v}×${w[i]<0?`(${w[i]})`:w[i]}`).join(" + ")} = <b>${sum}</b>`}}
+function mkReluQ(){
+  let v;do{v=Array.from({length:9},()=>{const a=ri(1,9);return Math.random()<.5?-a:a});if(Math.random()<.4)v[ri(0,8)]=0}while(v.filter(x=>x<0).length<3||v.filter(x=>x>0).length<3);
+  return{panels:[{label:"특징 맵",cols:3,vals:v,sep:"relu →"}],ans:{label:"relu 후",cols:3,vals:v.map(x=>Math.max(0,x))},region:i=>[[0,[i]]],
+    ex:"음수였던 칸만 0이 되고 나머지는 그대로예요."}}
+const blk=(q)=>{const r=Math.floor(q/2)*2,c=(q%2)*2;return[r*4+c,r*4+c+1,(r+1)*4+c,(r+1)*4+c+1]};
+const qcls=i=>"q"+(Math.floor(i/8)*2+Math.floor((i%4)/2));
+function mkPoolQ(){
+  const v=Array.from({length:16},()=>ri(0,9));const a=[0,1,2,3].map(q=>Math.max(...blk(q).map(i=>v[i])));
+  return{panels:[{label:"특징 맵 (relu 후)",cols:4,vals:v,cls:qcls,sep:"→"}],ans:{label:"최대 풀링",cols:2,vals:a},region:q=>[[0,blk(q)]],
+    ex:`2×2 묶음마다 가장 큰 값: ${a.join(", ")}`}}
+function mkReluPoolQ(){
+  let v;do{v=Array.from({length:16},()=>{const a=ri(1,9);return Math.random()<.45?-a:a});const z=ri(0,3);blk(z).forEach(i=>v[i]=-ri(1,9))}while(v.filter(x=>x>0).length<5);
+  const a=[0,1,2,3].map(q=>Math.max(0,...blk(q).map(i=>v[i])));
+  return{panels:[{label:"특징 맵 (relu 전)",cols:4,vals:v,cls:qcls,sep:"→"}],ans:{label:"relu → 최대 풀링",cols:2,vals:a},region:q=>[[0,blk(q)]],
+    ex:`relu로 음수를 0으로 바꾼 다음 2×2 묶음마다 가장 큰 값을 골라요: ${a.join(", ")}. 네 칸이 모두 음수인 묶음은 0이 돼요.`}}
+
+/* ---------- screens ---------- */
+const app=$("#app");
+let cur=null,nav=0;
+const starsOf=id=>(S.prog[id]||{}).stars||0;
+const QUIZ=()=>LEVELS.filter(L=>!L.intro);
+const MAXST=()=>QUIZ().length*3;
+const totStars=()=>QUIZ().reduce((s,L)=>s+starsOf(L.id),0);
+const unlocked=i=>S.unlock||i===0||starsOf(LEVELS[i-1].id)>0;
+const allDone=()=>LEVELS.every(L=>starsOf(L.id)>0);
+const starStr=n=>[0,1,2].map(i=>`<span class="${i<n?"on":""}">★</span>`).join("");
+
+function renderHome(){
+  nav++;cur=null;
+  const tot=totStars();
+  app.innerHTML=`
+  <header class="hero">
+    <span class="eyebrow">손글씨 숫자 분류 + 합성곱 모델 구현하기 (교과서 149p~)</span>
+    <div class="titlerow"><h1>합성곱<br>신경망 <em>퀘스트</em></h1><button class="resetbtn" id="rst">퀴즈 초기화</button></div>
+    <p>커널의 크기와 개수, 스트라이드를 직접 정하고, 커널이 가중치를 찾아가는 모습을 지켜봐요. 레벨을 깨면 휴대폰 안에서 진짜 합성곱 신경망이 숫자를 배워요.</p>
+    <div class="me"><label for="nm">이름</label><input id="nm" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}" autocomplete="off"><span class="tot">★ ${tot} / ${MAXST()}</span></div>
+    <button class="btn ghost codecta" id="code">전체 파이썬 코드 보기</button>
+  </header>
+  ${allDone()?`<button class="btn primary certcta" id="cert">완주 카드 보기</button>`:""}
+  ${GROUPS.map(g=>`<section class="stage-g"><h3>${g.t} <small>${g.s}</small></h3>
+    ${g.ids.map(id=>{const i=LEVELS.findIndex(L=>L.id===id),L=LEVELS[i],st=starsOf(id),open=unlocked(i);
+      return `<button class="lv ${st?"done":open?"open":"locked"}" data-i="${i}" ${open?"":'aria-disabled="true"'}>
+        <span class="num"><span>${id}</span></span><span class="tt"><b>${L.title}</b><span>${L.goal}</span></span><span class="st">${L.intro?(st?`<span class="on" style="color:var(--ok)">✓ 읽음</span>`:"설명"):starStr(st)}</span></button>`}).join("")}
+  </section>`).join("")}
+  <div class="foot">
+    <span>진행 상황은 이 기기에만 저장돼요.</span>
+    <span>2026 중앙여고 인공지능기초</span>
+  </div>`;
+  $("#nm").addEventListener("input",e=>{S.name=e.target.value.trim();save()});
+  $$(".lv").forEach(b=>b.addEventListener("click",()=>{const i=+b.dataset.i;if(unlocked(i))openLevel(i)}));
+  $("#rst").addEventListener("click",askReset);
+  $("#code").addEventListener("click",renderCode);
+  const c=$("#cert");if(c)c.addEventListener("click",renderCert);
+  window.scrollTo(0,0);
+}
+function askReset(){
+  const ov=document.createElement("div");ov.className="ov";
+  ov.innerHTML=`<div class="ovc" role="dialog" aria-label="퀴즈 초기화"><span class="eyebrow">퀴즈 초기화</span><h2>초기화할까요?</h2>
+    <p style="margin:0">단계 3부터 모은 별, 합성곱 층 설정, 정확도 기록이 지워지고 레벨 3부터 다시 시작해요. 단계 1·2 설명은 열린 채로 남아 있어서 언제든 다시 볼 수 있어요.</p>
+    <div class="btns"><button class="btn primary" id="rsy">초기화하기</button><button class="btn ghost" id="rsn">취소</button></div></div>`;
+  document.body.appendChild(ov);
+  $("#rsn").addEventListener("click",()=>ov.remove());
+  $("#rsy").addEventListener("click",()=>{ov.remove();resetQuest()});
+}
+function resetQuest(){
+  S.prog={};LEVELS.filter(L=>L.intro).forEach(L=>{S.prog[L.id]={stars:3}});
+  S.best=null;S.unlock=false;S.cfg={...CFG0};ML.model=null;ML.trainAcc=null;ML.traj=[];save();renderHome();
+}
+function renderCode(){
+  nav++;cur=null;const src=pyPlain(S.cfg,S.epochs||3);
+  app.innerHTML=`
+  <div class="lvhead"><button class="back" id="back" aria-label="레벨 지도로 돌아가기">←</button><div class="lvt"><span class="eyebrow">파이썬 코드</span><b>합성곱 신경망 전체 코드</b></div><span></span></div>
+  <main class="stage">
+    <p class="lead">퀘스트에서 만든 모델의 전체 코드예요. 합성곱 층은 레벨 3에서 정한 설정(<code>${S.cfg.K}, (${S.cfg.k}, ${S.cfg.k}), strides=(${S.cfg.s}, ${S.cfg.s})</code>)으로 바뀌어 보여요. 코랩(Colab)에 붙여 넣어 실행할 수 있어요.</p>
+    <div class="codehead"><span class="note">교과서 문법: Sequential · add · Input · Flatten · Dense · compile · fit · evaluate · predict</span></div>
+    <pre class="code" id="py" style="white-space:pre;overflow-x:auto;font-size:12.5px">${hiPy(src)}</pre>
+    <button class="btn primary" id="cp">코드 복사하기</button>
+    <p class="note" id="cpm"></p>
+  </main>`;
+  $("#back").addEventListener("click",renderHome);
+  $("#cp").addEventListener("click",async()=>{
+    let ok=false;try{await navigator.clipboard.writeText(src);ok=true}catch(e){}
+    if(!ok){const r=document.createRange();r.selectNodeContents($("#py"));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);try{ok=document.execCommand("copy")}catch(e){}}
+    $("#cpm").textContent=ok?"복사했어요. 코랩 코드 셀에 붙여 넣어 보세요.":"코드를 길게 눌러 직접 복사해 주세요.";
+  });
+  window.scrollTo(0,0);
+}
+function openLevel(i){
+  nav++;cur={i,L:LEVELS[i],idx:0,mistakes:0};
+  app.innerHTML=`
+  <div class="lvhead"><button class="back" id="back" aria-label="레벨 지도로 돌아가기">←</button>
+    <div class="lvt"><span class="eyebrow">LEVEL ${cur.L.id} · ${cur.L.stage}</span><b>${cur.L.title}</b></div>
+    <span class="miss" id="miss" ${cur.L.intro?"hidden":""}>실수 0</span></div>
+  <div class="bar"><i id="bar"></i></div>
+  <main class="stage" id="stage"></main>
+  <footer class="act"><div class="in"><button class="btn primary" id="go">다음</button></div></footer>`;
+  $("#back").addEventListener("click",renderHome);
+  renderStep();
+}
+function setGo(label,enabled,fn){const g=$("#go");if(!g)return;g.textContent=label;g.disabled=!enabled;g.onclick=fn||null}
+function mistake(){if(!cur)return;cur.mistakes++;const m=$("#miss");m.textContent="실수 "+cur.mistakes;m.classList.remove("bump");void m.offsetWidth;m.classList.add("bump")}
+function nextStep(){cur.idx++;if(cur.idx>=cur.L.steps.length)return finishLevel();renderStep()}
+function renderStep(){
+  nav++;const token=nav;
+  const st0=cur.L.steps[cur.idx],st=typeof st0==="function"?st0():st0,n=cur.L.steps.length;
+  $("#bar").style.width=(cur.idx/n*100)+"%";
+  const stage=$("#stage");
+  stage.innerHTML=`<p class="stepno">${cur.idx+1} / ${n}</p><div id="box" class="stage" style="padding:0"></div>`;
+  const box=$("#box");
+  const api={done:()=>{if(token===nav)setGo("다음",true,nextStep)},mistake,alive:()=>token===nav,setGo:(l,e,f)=>{if(token===nav)setGo(l,e,f)}};
+  if(st.type==="mcq")stepMCQ(st,box,api);
+  else if(st.type==="fill")stepFill(st,box,api);
+  else if(st.type==="grid")stepGrid(st,box,api);
+  else if(st.type==="info"){box.innerHTML=`<h2 class="q">${st.title}</h2>${st.html}`;setGo("다음",true,nextStep)}
+  else{setGo("다음",false,nextStep);st.mount(box,api)}
+  window.scrollTo(0,0);
+}
+function stepMCQ(st,box,api){
+  box.innerHTML=`${st.code?`<pre class="code">${esc(st.code)}</pre>`:""}<h2 class="q">${st.q}</h2>
+   <div class="opts">${st.opts.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join("")}</div><div class="explain" hidden></div>`;
+  setGo("정답을 골라 주세요",false);
+  let solved=false;
+  $$(".opt",box).forEach(b=>b.addEventListener("click",()=>{
+    if(solved)return;const i=+b.dataset.i;
+    if(i===st.a){solved=true;b.classList.add("right");$$(".opt",box).forEach(o=>o.disabled=true);
+      const ex=$(".explain",box);ex.innerHTML=`<b>정답!</b> ${st.ex}`;ex.hidden=false;api.setGo("다음",true,nextStep);ex.scrollIntoView({block:"nearest",behavior:"smooth"})}
+    else{b.classList.add("wrong");b.disabled=true;mistake()}
+  }));
+}
+function stepFill(st,box,api){
+  const filled=st.ans.map(()=>null);let active=0,solved=false;
+  const pairs=st.style==="pairs";
+  const bank=shuffle([...new Set(st.bank||st.ans)]);
+  box.innerHTML=`<h2 class="q">${st.q}</h2>
+   <div class="${pairs?"pairs":"code"}">${st.lines.map(l=>`<div class="ln">${l.replace(/\{\{(\d+)\}\}/g,(m,k)=>`<button class="blank empty" data-k="${k}" aria-label="빈칸 ${+k+1}"></button>`)}</div>`).join("")}</div>
+   <p class="hint">빈칸을 누른 다음, 아래 블록을 골라 넣으세요. 채운 빈칸을 다시 누르면 비워져요.</p>
+   <div class="bank">${bank.map(c=>`<button class="chip ${pairs?"kr":""}" data-v="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+   <div class="explain" hidden></div>`;
+  const blanks=$$(".blank",box);
+  function paint(){
+    blanks.forEach(b=>{const k=+b.dataset.k;b.textContent=filled[k]??"";b.classList.toggle("empty",filled[k]==null);b.classList.toggle("on",k===active&&!solved)});
+    if(!solved)api.setGo(filled.every(v=>v!=null)?"확인하기":"빈칸을 모두 채워 주세요",filled.every(v=>v!=null),check);
+  }
+  blanks.forEach(b=>b.addEventListener("click",()=>{if(solved)return;const k=+b.dataset.k;if(filled[k]!=null&&active===k){filled[k]=null}active=k;b.classList.remove("wrong");paint()}));
+  $$(".chip",box).forEach(c=>c.addEventListener("click",()=>{
+    if(solved)return;filled[active]=c.dataset.v;blanks.find(b=>+b.dataset.k===active).classList.remove("wrong");
+    for(let s=1;s<=filled.length;s++){const k=(active+s)%filled.length;if(filled[k]==null){active=k;break}}
+    paint();
+  }));
+  function check(){
+    const wrong=filled.map((v,k)=>v===st.ans[k]?-1:k).filter(k=>k>=0);
+    if(!wrong.length){solved=true;blanks.forEach(b=>{b.classList.add("right");b.classList.remove("on");b.disabled=true});$$(".chip",box).forEach(c=>c.disabled=true);
+      const ex=$(".explain",box);ex.innerHTML=`<b>완성!</b> ${st.ex}`;ex.hidden=false;api.setGo("다음",true,nextStep);ex.scrollIntoView({block:"nearest",behavior:"smooth"})}
+    else{mistake();wrong.forEach(k=>{const b=blanks.find(x=>+x.dataset.k===k);b.classList.remove("wrong");void b.offsetWidth;b.classList.add("wrong");filled[k]=null});active=wrong[0];paint();
+      api.setGo(`틀린 빈칸 ${wrong.length}개를 다시 채워 주세요`,false)}
+  }
+  paint();
+}
+/* number-grid quiz: type the numbers, the matching input region lights up */
+function stepGrid(st,box,api){
+  let r=0;
+  const show=()=>{
+    const P=st.make(),A=P.ans,n=A.vals.length;
+    const cell=(p,pi,v,i)=>`<span class="mc ${v<0?"neg":""} ${p.cls?p.cls(i):""}" data-p="${pi}" data-i="${i}">${v}</span>`;
+    box.innerHTML=`<h2 class="q">${st.q}</h2>${st.lead?`<p class="lead">${st.lead}</p>`:""}
+     ${st.rounds>1?`<p class="stepno">문제 ${r+1} / ${st.rounds}</p>`:""}
+     <div class="card"><div class="gq">${P.panels.map((p,pi)=>`<div class="gp"><span class="note">${p.label}</span><div class="mg" style="--c:${p.cols}">${p.vals.map((v,i)=>cell(p,pi,v,i)).join("")}</div></div><span class="garr">${p.sep}</span>`).join("")}
+      <div class="gp"><span class="note">${A.label}</span><div class="mg" style="--c:${A.cols};--cs:${A.cols===1?"56px":"46px"}">${A.vals.map((v,i)=>`<input class="mc ${P.panels[0].cls&&A.cols===2?"q"+i:""}" data-a="${i}" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off" aria-label="${A.label} ${i+1}번 칸">`).join("")}</div></div></div></div>
+     <div class="explain" hidden></div>`;
+    const ins=$$("input.mc",box);let solved=false;
+    const hl=i=>{$$(".mc.hl",box).forEach(e=>e.classList.remove("hl"));P.region(i).forEach(([pi,list])=>{$$(`.mc[data-p="${pi}"]`,box).forEach(e=>{if(list==="all"||list.includes(+e.dataset.i))e.classList.add("hl")})})};
+    const upd=()=>{if(solved)return;const full=ins.every(x=>x.value.trim()!=="");api.setGo(full?"확인하기":"빈칸을 모두 채워 주세요",full,check)};
+    ins.forEach(x=>{x.addEventListener("focus",()=>hl(+x.dataset.a));x.addEventListener("input",()=>{x.value=x.value.replace(/[^0-9]/g,"");x.classList.remove("wrong");upd()});
+      x.addEventListener("keydown",e=>{if(e.key==="Enter"){const nx=ins.find((y,k)=>k>+x.dataset.a&&!y.value);if(nx)nx.focus();else if(ins.every(y=>y.value))check()}})});
+    function check(){
+      const wrong=ins.filter(x=>+x.value!==A.vals[+x.dataset.a]);
+      if(!wrong.length){solved=true;ins.forEach(x=>{x.classList.add("right");x.readOnly=true});$$(".mc.hl",box).forEach(e=>e.classList.remove("hl"));
+        const ex=$(".explain",box);ex.innerHTML=`<b>정답!</b> ${P.ex}`;ex.hidden=false;ex.scrollIntoView({block:"nearest",behavior:"smooth"});
+        if(r<st.rounds-1)api.setGo("다음 문제",true,()=>{r++;show()});else api.done()}
+      else{mistake();wrong.forEach(x=>{x.classList.remove("wrong");void x.offsetWidth;x.classList.add("wrong");x.value=""});wrong[0].focus();
+        api.setGo(`틀린 칸 ${wrong.length}개를 다시 채워 주세요`,false)}
+    }
+    upd();
+  };
+  show();
+}
+function finishLevel(){
+  $("#bar").style.width="100%";
+  const m=cur.mistakes,stars=m===0?3:m<=2?2:1,id=cur.L.id;
+  S.prog[id]={stars:Math.max(starsOf(id),stars)};save();
+  const i=cur.i,last=i===LEVELS.length-1;
+  const ov=document.createElement("div");ov.className="ov";
+  ov.innerHTML=`<div class="ovc" role="dialog" aria-label="레벨 클리어"><span class="eyebrow">LEVEL ${id}</span><h2>${cur.L.intro?"다 봤어요!":"클리어!"}</h2>
+    ${cur.L.intro?`<p class="note">설명을 모두 읽었어요.</p>`:`<div class="stars">${starStr(stars)}</div><p class="note">실수 ${m}번 · ${m===0?"완벽해요!":m<=2?"잘했어요!":"끝까지 해냈어요!"}</p>`}
+    <div class="learned"><b>배운 것</b><br>${cur.L.learned}</div>
+    <div class="btns">${last?`<button class="btn primary" id="ovn">완주 카드 보기</button>`:`<button class="btn primary" id="ovn">다음 레벨</button>`}<button class="btn ghost" id="ovh">레벨 지도</button></div></div>`;
+  document.body.appendChild(ov);
+  $("#ovn").addEventListener("click",()=>{ov.remove();last?renderCert():openLevel(i+1)});
+  $("#ovh").addEventListener("click",()=>{ov.remove();renderHome()});
+}
+function renderCert(){
+  nav++;
+  const tot=totStars(),d=new Date(),c=S.cfg;
+  app.innerHTML=`
+  <div class="lvhead"><button class="back" id="back" aria-label="레벨 지도로 돌아가기">←</button><div class="lvt"><span class="eyebrow">완주 카드</span><b>합성곱 신경망 퀘스트</b></div><span></span></div>
+  <div class="cert">
+    <span class="eyebrow">손글씨 숫자 분류 + 합성곱 모델 (교과서 149p~)</span>
+    <h2>합성곱 신경망<br>퀘스트 완주</h2>
+    <div class="me" style="margin:0"><label for="nm2">이름</label><input id="nm2" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}"></div>
+    <p style="margin:0">합성곱 층의 커널을 설정하고, 커널이 가중치를 찾는 과정을 지켜보며, relu와 최대 풀링까지 거치는 합성곱 신경망을 직접 만들어 봤어요.</p>
+    <div class="cfg"><span>Conv2D(${c.K}, (${c.k}, ${c.k}), strides=(${c.s}, ${c.s}))</span><span>MaxPooling2D((2, 2))</span></div>
+    <div class="kpi"><div><span class="note">모은 별</span><b>★ ${tot}/${MAXST()}</b></div><div><span class="note">최고 테스트 정확도</span><b>${S.best!=null?(S.best*100).toFixed(1)+"%":"–"}</b></div></div>
+    <div class="grid">${LEVELS.map(L=>`<div>LV ${L.id}<b style="color:var(--star)">${L.intro?(starsOf(L.id)?"✓":"–"):("★".repeat(starsOf(L.id))||"–")}</b></div>`).join("")}</div>
+    <p class="note">${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}.</p>
+  </div>
+  <p class="note" style="margin-top:14px;text-align:center">이 화면을 선생님께 보여 주세요.</p>`;
+  $("#back").addEventListener("click",renderHome);
+  $("#nm2").addEventListener("input",e=>{S.name=e.target.value.trim();save()});
+  window.scrollTo(0,0);
+}
+
+/* ---------- widgets ---------- */
+function mountLoad(box,api){
+  box.innerHTML=`<h2 class="q">데이터를 불러와 모양을 바꿔 볼까요?</h2>
+  <pre class="code">X_train = X_train.reshape(60000, 28, 28, 1)
+X_test = X_test.reshape(10000, 28, 28, 1)
+${K("print")}(X_train.shape, y_train.shape, X_test.shape, y_test.shape)</pre>
+  <button class="btn run" id="run">실행하기</button>
+  <div id="out" class="stage" style="padding:0"></div>`;
+  $("#run",box).addEventListener("click",async e=>{
+    e.currentTarget.disabled=true;const out=$("#out",box);
+    out.innerHTML=`<pre class="log" id="lg">Downloading data ...</pre><div class="prog"><i id="pg"></i></div>`;
+    await ensureData(p=>{const pg=$("#pg",box);if(pg)pg.style.width=(p*100)+"%"});
+    if(!api.alive())return;
+    $("#lg",box).innerHTML=`Downloading data ... 완료\n<b>(${N_TRAIN}, 28, 28, 1) (${N_TRAIN},) (${N_TEST}, 28, 28, 1) (${N_TEST},)</b>`;
+    const cv=document.createElement("canvas");cv.className="thumbs";cv.width=28*12;cv.height=28*10;const x=cv.getContext("2d");
+    for(let d=0;d<10;d++)for(let k=0;k<12;k++){const t=document.createElement("canvas");drawDigit(t,sampleOf(ML.train,d+10*k));x.drawImage(t,k*28,d*28)}
+    out.insertAdjacentHTML("beforeend",`<div class="explain warn"><b>알아 두기</b> 교과서의 MNIST는 훈련 60,000장, 테스트 10,000장이에요. 이 앱은 휴대폰에서 빠르게 학습하도록 여러 손글씨 글꼴로 만든 연습용 숫자 훈련 ${N_TRAIN.toLocaleString()}장, 테스트 ${N_TEST}장을 써요.</div>`);
+    out.appendChild(cv);
+    out.insertAdjacentHTML("beforeend",`<p class="note">불러온 훈련 데이터 일부 (줄마다 0~9). 맨 뒤의 1은 흑백 채널 1개라는 뜻이에요.</p>`);
+    api.done();
+  });
+}
+/* kernel sliding over a 7×7 picture */
+const IMG7=[0,0,0,0,0,0,0, 0,1,1,1,1,1,0, 0,0,0,0,0,1,0, 0,0,0,0,1,0,0, 0,0,0,1,0,0,0, 0,0,0,1,0,0,0, 0,0,0,0,0,0,0];
+const diagK=k=>Array.from({length:k*k},(_,i)=>Math.floor(i/k)+i%k===k-1?1:0);
+function mountSlide(box,api){
+  let k=3,s=1,pos=0,doneOnce=false;
+  box.innerHTML=`<h2 class="q">커널을 움직여 특징 맵 만들기</h2>
+  <p class="lead">숫자 7을 7×7칸으로 나타냈어요. 오른쪽 위에서 왼쪽 아래로 가는 <b>대각선(/)</b>을 찾는 커널을 움직여 보세요. 커널 크기와 스트라이드를 바꾸면 특징 맵의 크기도 바뀌어요.</p>
+  <div class="card optpair" style="padding:14px">
+    <div class="optrow"><b>커널 크기</b><div class="seg seg2" id="ks"><button data-v="3" aria-pressed="true">(3, 3)</button><button data-v="5" aria-pressed="false">(5, 5)</button></div></div>
+    <div class="optrow"><b>스트라이드</b><div class="seg seg2" id="ss"><button data-v="1" aria-pressed="true">(1, 1)</button><button data-v="2" aria-pressed="false">(2, 2)</button></div></div>
+  </div>
+  <div class="btnrow"><button class="btn ghost" id="pv">◀ 이전</button><button class="btn ghost" id="nx">다음 ▶</button><button class="btn ghost" id="ed">끝까지</button></div>
+  <div class="card stage sl" style="padding:14px" id="vw"></div>`;
+  const vw=$("#vw",box);
+  const render=()=>{
+    const n=outH(k,s,7),tot=n*n,w=diagK(k),r=Math.floor(pos/n),c=pos%n,r0=r*s,c0=c*s;
+    const out=[];for(let q=0;q<tot;q++){const rr=Math.floor(q/n),cc=q%n;let v=0;for(let u=0;u<k;u++)for(let t=0;t<k;t++)v+=w[u*k+t]*IMG7[(rr*s+u)*7+cc*s+t];out.push(v)}
+    const inWin=i=>{const y=Math.floor(i/7),x=i%7;return y>=r0&&y<r0+k&&x>=c0&&x<c0+k};
+    const terms=[];for(let u=0;u<k;u++)for(let t=0;t<k;t++)if(w[u*k+t])terms.push(`${IMG7[(r0+u)*7+c0+t]}×${w[u*k+t]}`);
+    vw.innerHTML=`<div class="gq">
+      <div class="gp"><span class="note">그림 7×7</span><div class="mg" style="--c:7">${IMG7.map((v,i)=>`<span class="mc ${inWin(i)?"win":""} ${v?"one":"zero"}">${v}</span>`).join("")}</div></div>
+      <div class="gp"><span class="note">커널 ${k}×${k}</span><div class="mg" style="--c:${k};--cs:${k===3?"24px":"17px"}">${w.map(v=>`<span class="mc ${v?"one":"zero"}" style="font-size:${k===3?12:10}px;border-radius:5px">${v}</span>`).join("")}</div></div></div>
+      <p class="calc">${r}행 ${c}열: ${terms.join(" + ")} = <b>${out[pos]}</b>${k===5?" <span class=\"note\">(커널 값이 0인 칸은 곱해도 0이라 뺐어요)</span>":""}</p>
+      <div class="gq"><div class="gp"><span class="note">특징 맵 ${n}×${n}</span><div class="mg" style="--c:${n}">${out.map((v,q)=>`<span class="mc ${q===pos?"cur":q>pos?"empty":""}">${v}</span>`).join("")}</div></div></div>
+      <p class="calc">특징 맵 크기 = (7 − ${k}) ÷ ${s} + 1 = <b>${n}</b>${(7-k)%s?" (소수점 버림)":""}</p>`;
+    $("#pv",box).disabled=pos===0;$("#nx",box).disabled=$("#ed",box).disabled=pos===tot-1;
+    if(pos===tot-1&&!doneOnce){doneOnce=true;api.done()}
+  };
+  const seg=(id,set)=>$$(`#${id} button`,box).forEach(b=>b.onclick=()=>{set(+b.dataset.v);$$(`#${id} button`,box).forEach(x=>x.setAttribute("aria-pressed",x===b));pos=0;render()});
+  seg("ks",v=>k=v);seg("ss",v=>s=v);
+  $("#pv",box).onclick=()=>{pos=Math.max(0,pos-1);render()};
+  $("#nx",box).onclick=()=>{pos++;render()};
+  $("#ed",box).onclick=()=>{const n=outH(k,s,7);pos=n*n-1;render()};
+  api.setGo("커널을 끝까지 움직여 보세요",false);
+  render();
+}
+/* choose kernel count / size / stride → shapes, code, and that many feature maps */
+function mountConfig(box,api){
+  const c={...S.cfg};
+  box.innerHTML=`<h2 class="q">나의 합성곱 층 설정하기</h2>
+  <p class="lead">커널의 개수, 크기, 스트라이드를 골라 보세요. 고른 설정은 레벨 6~9에서 학습할 모델에 그대로 쓰여요.</p>
+  <div class="card stage" style="padding:14px">
+    <div class="optrow"><b>커널 개수</b><div class="seg seg3" id="cK">${[4,8,16,32].map(v=>`<button data-v="${v}" aria-pressed="${v===c.K}">${v}개</button>`).join("")}</div></div>
+    <div class="optrow"><b>커널 크기</b><div class="seg seg2" id="ck">${[3,5].map(v=>`<button data-v="${v}" aria-pressed="${v===c.k}">(${v}, ${v})</button>`).join("")}</div></div>
+    <div class="optrow"><b>스트라이드</b><div class="seg seg2" id="cs">${[1,2].map(v=>`<button data-v="${v}" aria-pressed="${v===c.s}">(${v}, ${v})</button>`).join("")}</div></div>
+  </div>
+  <pre class="code" id="cl"></pre>
+  <div class="card tablebox" id="ct"></div>
+  <div class="card stage" style="padding:14px"><b id="fh"></b><p class="note">아직 학습 전이라 커널 값이 무작위예요. 레벨 7에서 학습하며 가중치를 찾아요.</p>${mapKey}<div class="fmaps" id="fm"></div></div>
+  <button class="btn ghost" id="ok" style="width:100%">이 설정으로 정하기</button>
+  <div id="msg"></div>`;
+  const render=()=>{
+    const sh=shapes(c),raw=(28-c.k)/c.s+1;
+    $("#cl",box).innerHTML=`model.add(Conv2D(<span class="n">${c.K}</span>, <span class="n">(${c.k}, ${c.k})</span>, strides=<span class="n">(${c.s}, ${c.s})</span>, activation=${Q("'relu'")}))`;
+    $("#ct",box).innerHTML=`<table class="t"><tbody>
+      <tr><td>특징 맵 크기</td><td class="n">(28 − ${c.k}) ÷ ${c.s} + 1 = ${Number.isInteger(raw)?raw:raw+" → "+sh.H}</td></tr>
+      <tr><td>합성곱 층 출력</td><td class="n">${sh.H}×${sh.H} 특징 맵 ${c.K}장</td></tr>
+      <tr><td>최대 풀링 후</td><td class="n">${sh.P}×${sh.P} 특징 맵 ${c.K}장</td></tr>
+      <tr><td>합성곱 층 가중치</td><td class="n">(${c.k}×${c.k}+1)×${c.K} = ${nf(sh.pc)}</td></tr></tbody></table>`;
+    $("#fh",box).textContent=`숫자 7에서 나온 특징 맵 ${c.K}장 (${sh.H}×${sh.H})`;
+    const rnd=mulberry32(c.K*100+c.k*10+c.s),l=Math.sqrt(6/(c.k*c.k*(1+c.K))),x=demo7();
+    $("#fm",box).innerHTML=Array.from({length:c.K},(_,i)=>`<figure><canvas></canvas>${i+1}</figure>`).join("");
+    $$("#fm canvas",box).forEach((cv,i)=>{const w=Array.from({length:c.k*c.k},()=>(rnd()*2-1)*l);drawMap(cv,convMap(w,0,c.k,c.s,x).z,sh.H,"div")});
+  };
+  const seg=(id,key)=>$$(`#${id} button`,box).forEach(b=>b.onclick=()=>{c[key]=+b.dataset.v;$$(`#${id} button`,box).forEach(x=>x.setAttribute("aria-pressed",x===b));$("#msg",box).innerHTML="";render()});
+  seg("cK","K");seg("ck","k");seg("cs","s");
+  $("#ok",box).onclick=()=>{S.cfg={...c};save();
+    $("#msg",box).innerHTML=`<div class="explain"><b>설정 완료!</b> 커널 ${c.K}개, 크기 (${c.k}, ${c.k}), 스트라이드 (${c.s}, ${c.s})로 정했어요. 이 레벨을 다시 열면 언제든 바꿀 수 있어요.</div>`;api.done()};
+  api.setGo("설정을 고르고 '이 설정으로 정하기'를 누르세요",false);
+  loadFonts().then(()=>{if(api.alive())render()});
+}
+/* designed kernels → feature map → relu */
+const DK=[{t:"세로 경계",w:[1,0,-1,1,0,-1,1,0,-1]},{t:"가로 경계",w:[1,1,1,0,0,0,-1,-1,-1]},{t:"윤곽선",w:[-1,-1,-1,-1,8,-1,-1,-1,-1]}];
+function mountRelu(box,api){
+  let ki=2;
+  box.innerHTML=`<h2 class="q">특징 맵에 relu 적용해 보기</h2>
+  <p class="lead">사람이 설계한 커널로 숫자 7의 특징 맵을 만들고 relu를 적용해 봐요. 커널을 바꿔 보세요.</p>
+  <div class="seg seg3" id="dk" style="grid-template-columns:repeat(3,1fr)">${DK.map((d,i)=>`<button data-i="${i}" aria-pressed="${i===ki}">${d.t}</button>`).join("")}</div>
+  <div class="card stage" style="padding:14px">
+    <div class="kwrap"><div id="kg"></div><div class="kside" id="ks"></div></div>
+    <div class="flow flow3"><figure><canvas id="m0"></canvas><figcaption>입력 28×28</figcaption></figure><figure><canvas id="m1"></canvas><figcaption>합성곱 결과<br>26×26</figcaption></figure><figure><canvas id="m2"></canvas><figcaption>relu 후<br>26×26</figcaption></figure></div>
+    ${mapKey}
+  </div>`;
+  const render=()=>{const d=DK[ki],x=demo7(),{H,z}=convMap(d.w,0,3,1,x),a=relu(z),neg=z.filter(v=>v<0).length;
+    $("#kg",box).innerHTML=kgridHTML(d.w,3);
+    $("#ks",box).innerHTML=`<b>${d.t} 커널</b><span>음수였던 칸 <b>${neg}</b>개가 relu로 0이 되었어요.</span><span>크기는 26×26 그대로예요.</span>`;
+    drawMap($("#m0",box),x,28,"gray",1);const m=Math.max(...z.map(Math.abs));drawMap($("#m1",box),z,H,"div",m);drawMap($("#m2",box),a,H,"div",m)};
+  $$("#dk button",box).forEach(b=>b.onclick=()=>{ki=+b.dataset.i;$$("#dk button",box).forEach(x=>x.setAttribute("aria-pressed",x===b));render()});
+  loadFonts().then(()=>{if(api.alive()){render();api.done()}});
+}
+/* relu map → max pooled map, tap to see one 2×2 window */
+function mountPoolViz(box,api){
+  box.innerHTML=`<h2 class="q">특징 맵을 최대 풀링해 보기</h2>
+  <p class="lead">윤곽선 커널로 만든 특징 맵(relu 후)을 최대 풀링했어요. 오른쪽 그림의 칸을 눌러 어떤 2×2 영역에서 골랐는지 확인해 보세요.</p>
+  <div class="card stage" style="padding:14px">
+    <div class="duo"><figure><canvas id="pa"></canvas>relu 후 26×26</figure><figure><canvas id="pb"></canvas>최대 풀링 후 13×13</figure></div>
+    <div id="pinfo" class="calc">오른쪽 그림의 칸을 눌러 보세요.</div>
+  </div>`;
+  let a,p,H=26,P=13,m;
+  const draw=(sel)=>{const Za=drawMap($("#pa",box),a,H,"gray",m),Zb=drawMap($("#pb",box),p,P,"gray",m);
+    if(sel){const [i,j]=sel,ac=cssv("--accent");const xa=$("#pa",box).getContext("2d"),xb=$("#pb",box).getContext("2d");
+      xa.strokeStyle=ac;xa.lineWidth=Math.max(2,Za/3);xa.strokeRect(2*j*Za,2*i*Za,2*Za,2*Za);xb.strokeStyle=ac;xb.lineWidth=Math.max(2,Zb/4);xb.strokeRect(j*Zb,i*Zb,Zb,Zb)}};
+  loadFonts().then(()=>{if(!api.alive())return;const x=demo7(),z=convMap(DK[2].w,0,3,1,x).z;a=relu(z);p=maxPool(a,H).p;m=Math.max(...a);draw(null);
+    $("#pb",box).addEventListener("click",e=>{const r=e.currentTarget.getBoundingClientRect(),j=Math.min(P-1,Math.floor((e.clientX-r.left)/r.width*P)),i=Math.min(P-1,Math.floor((e.clientY-r.top)/r.height*P));
+      const four=[a[2*i*H+2*j],a[2*i*H+2*j+1],a[(2*i+1)*H+2*j],a[(2*i+1)*H+2*j+1]].map(v=>v.toFixed(1));
+      draw([i,j]);$("#pinfo",box).innerHTML=`${i}행 ${j}열 ← 2×2 영역 [${four.join(", ")}] 중 가장 큰 값 = <b>${p[i*P+j].toFixed(1)}</b>`;api.done()});
+  });
+  api.setGo("오른쪽 그림의 칸을 눌러 보세요",false);
+}
+function summaryText(c){const sh=shapes(c),pad=(s,n)=>(s+" ".repeat(n)).slice(0,n);
+  const rows=[["conv2d (Conv2D)",`(None, ${sh.H}, ${sh.H}, ${c.K})`,nf(sh.pc)],["max_pooling2d (MaxPooling2D)",`(None, ${sh.P}, ${sh.P}, ${c.K})`,"0"],["flatten (Flatten)",`(None, ${sh.F})`,"0"],["dense (Dense)","(None, 64)",nf(sh.p1)],["dense_1 (Dense)","(None, 10)","650"]];
+  return `Model: "sequential"\n${pad("Layer (type)",30)}${pad("Output Shape",20)}Param #\n${"─".repeat(58)}\n`+rows.map(r=>pad(r[0],30)+pad(r[1],20)+r[2]).join("\n")+`\n${"─".repeat(58)}\n<b>Total params: ${nf(sh.tot)}</b>`}
+function mountSummary(box,api){
+  const c=S.cfg,sh=shapes(c);
+  box.innerHTML=`<h2 class="q">model.summary()로 확인해요</h2>
+  <button class="btn run" id="run">model.summary()</button>
+  <pre class="log" id="lg" hidden style="max-height:none;white-space:pre;overflow-x:auto"></pre>
+  <div id="ex"></div>`;
+  $("#run",box).onclick=e=>{e.currentTarget.disabled=true;const lg=$("#lg",box);lg.hidden=false;lg.innerHTML=summaryText(c);
+    $("#ex",box).innerHTML=`<div class="card tablebox"><table class="t"><thead><tr><th>층</th><th class="n">가중치 + 편향</th></tr></thead><tbody>
+      <tr><td>합성곱 층 (커널 ${c.K}개)</td><td class="n">(${c.k}×${c.k}+1)×${c.K} = ${nf(sh.pc)}</td></tr>
+      <tr><td>최대 풀링 층</td><td class="n">0</td></tr>
+      <tr><td>Flatten (${sh.P}×${sh.P}×${c.K})</td><td class="n">0</td></tr>
+      <tr><td>Dense 64</td><td class="n">${nf(sh.F)}×64+64 = ${nf(sh.p1)}</td></tr>
+      <tr><td>Dense 10</td><td class="n">64×10+10 = 650</td></tr></tbody></table></div>
+      <p class="note">합성곱 층의 가중치는 ${nf(sh.pc)}개뿐이에요. 대부분의 가중치는 펴진 특징(${nf(sh.F)}개)을 받는 Dense 층에 있어요. 커널 개수를 줄이거나 스트라이드를 키우면 전체 가중치가 줄어요.</p>`;api.done()};
+  api.setGo("실행 버튼을 눌러 보세요",false);
+}
+/* the main event: watch one kernel's weights while the CNN trains */
+function mountKernelTrain(box,api){
+  const c=S.cfg,sh=shapes(c);let E=Math.min(5,S.epochs||3),kc=0,ref=null,busy=false,batchN=0;
+  box.innerHTML=`<h2 class="q">커널 하나의 가중치 찾기</h2>
+  <p class="lead">커널 ${c.K}개 중 하나를 골라 지켜보세요. '1 배치 학습'을 누르면 32장을 보고 가중치를 한 번 고쳐요. ▲▼는 방금 바뀐 양이에요.</p>
+  <div class="cfg"><span>Conv2D(${c.K}, (${c.k}, ${c.k}), strides=(${c.s}, ${c.s}))</span><span>MaxPooling2D((2, 2))</span><span>Dense 64 → 10</span></div>
+  <div class="card stage" style="padding:14px">
+    <div class="kpick"><b style="flex:1">지켜볼 커널</b><button id="kp" aria-label="이전 커널">◀</button><output id="ko">1번</output><button id="kn" aria-label="다음 커널">▶</button></div>
+    <div class="kwrap"><div id="kg"></div><div class="kside" id="ks"></div></div>
+    <div class="flow"><figure><canvas id="f0"></canvas><figcaption>입력</figcaption></figure><figure><canvas id="f1"></canvas><figcaption>합성곱 결과</figcaption></figure><figure><canvas id="f2"></canvas><figcaption>relu 후</figcaption></figure><figure><canvas id="f3"></canvas><figcaption>최대 풀링 후</figcaption></figure></div>
+    ${mapKey}
+    <div class="chartbox"><canvas class="traj" id="tj"></canvas><p class="note">이 커널의 가중치 ${c.k*c.k}개가 학습 횟수(가로축)에 따라 움직인 길</p></div>
+  </div>
+  <div class="btnrow" style="grid-template-columns:1fr 1fr"><button class="btn ghost" id="b1">1 배치 학습 (32장)</button><button class="btn ghost" id="nw">새 모델로 다시</button></div>
+  <div class="stepper"><label>epochs (반복 횟수)</label><button id="dn" aria-label="줄이기">−</button><output id="ep">${E}</output><button id="upb" aria-label="늘리기">+</button></div>
+  <button class="btn run" id="run"></button>
+  <pre class="log" id="log" hidden></pre>
+  <div class="chartbox" id="cb" hidden><div class="legend"><span><i style="background:var(--accent)"></i>loss (손실)</span><span><i style="background:var(--ok)"></i>accuracy (정확도)</span></div><canvas class="chart" id="chart"></canvas><p class="note">가로축: epoch (반복 횟수)</p></div>
+  <div id="sum"></div>`;
+  const run=$("#run",box),lbl=()=>{$("#ep",box).textContent=E;run.textContent=`model.fit(X_train, y_train, epochs=${E})`};lbl();
+  const lock=v=>{busy=v;["#b1","#nw","#dn","#upb","#run"].forEach(id=>$(id,box).disabled=v)};
+  const newModel=()=>{ML.model=new CNN(c);ML.traj=[ML.model.Wc.slice()];ML.ord=shuffle([...Array(N_TRAIN).keys()]);ML.ptr=0;ML.trainAcc=null;batchN=0;ref=null};
+  const renderK=()=>{const M=ML.model;if(!M)return;const w=M.kernel(kc),x=demo7(),{H,z}=M.map(x,kc),a=relu(z),{P,p}=maxPool(a,H);
+    $("#ko",box).textContent=`${kc+1}번`;$("#kg",box).innerHTML=kgridHTML(w,c.k,ref?ref.slice(kc*c.k*c.k,(kc+1)*c.k*c.k):null);
+    const w0=ML.traj[0].slice(kc*c.k*c.k,(kc+1)*c.k*c.k);let ch=0;for(let i=0;i<w.length;i++)ch+=Math.abs(w[i]-w0[i]);
+    $("#ks",box).innerHTML=`<span>학습 횟수 <b>${ML.traj.length-1}번</b></span><span>처음과 달라진 양<br><b>${ch.toFixed(3)}</b> (칸별 차이의 합)</span>${batchN?`<span id="bl"></span>`:""}`;
+    drawMap($("#f0",box),x,28,"gray",1);const m=Math.max(1e-6,...z.map(Math.abs));drawMap($("#f1",box),z,H,"div",m);drawMap($("#f2",box),a,H,"div",m);drawMap($("#f3",box),p,P,"div",m);
+    drawTraj()};
+  const drawTraj=()=>{const cv=$("#tj",box);const {x,w,h}=fitCanvas(cv,160);x.clearRect(0,0,w,h);const T=ML.traj,n=T.length,kk=c.k*c.k,o=kc*kk;
+    let lo=1e9,hi=-1e9;for(const s of T)for(let i=0;i<kk;i++){lo=Math.min(lo,s[o+i]);hi=Math.max(hi,s[o+i])}if(hi-lo<1e-6){hi+=.05;lo-=.05}
+    const L=38,R=10,Tp=10,B=20,pw=w-L-R,ph=h-Tp-B,X=t=>L+(n<=1?0:pw*t/(n-1)),Y=v=>Tp+ph*(hi-v)/(hi-lo);
+    x.font=`11px ${cssv("--f-mono")}`;x.fillStyle=cssv("--muted");x.strokeStyle=cssv("--line");x.lineWidth=1;
+    [hi,(hi+lo)/2,lo].forEach(v=>{const y=Y(v);x.beginPath();x.moveTo(L,y);x.lineTo(L+pw,y);x.stroke();x.textAlign="right";x.fillText(v.toFixed(2),L-4,y+4)});
+    if(lo<0&&hi>0){x.setLineDash([3,3]);x.beginPath();x.moveTo(L,Y(0));x.lineTo(L+pw,Y(0));x.stroke();x.setLineDash([])}
+    x.textAlign="left";x.fillText("0",L,h-5);x.textAlign="right";x.fillText(String(n-1),L+pw,h-5);
+    const stride=Math.max(1,Math.floor(n/400));
+    for(let i=0;i<kk;i++){const last=T[n-1][o+i];x.strokeStyle=last>=0?`hsla(${22+i*4},90%,52%,.9)`:`hsla(${212+i*4},75%,58%,.9)`;x.lineWidth=1.6;x.beginPath();
+      for(let t=0;t<n;t+=stride){const y=Y(T[t][o+i]);t?x.lineTo(X(t),y):x.moveTo(X(t),y)}x.lineTo(X(n-1),Y(last));x.stroke()}};
+  $("#kp",box).onclick=()=>{kc=(kc-1+c.K)%c.K;renderK()};$("#kn",box).onclick=()=>{kc=(kc+1)%c.K;renderK()};
+  $("#dn",box).onclick=()=>{E=Math.max(1,E-1);lbl()};$("#upb",box).onclick=()=>{E=Math.min(5,E+1);lbl()};
+  $("#nw",box).onclick=()=>{if(busy)return;newModel();$("#sum",box).innerHTML="";$("#log",box).hidden=true;$("#cb",box).hidden=true;renderK()};
+  $("#b1",box).onclick=async()=>{if(busy)return;lock(true);const M=ML.model;ref=M.Wc.slice();let loss=0,corr=0;
+    for(let t=0;t<32;t++){if(ML.ptr>=N_TRAIN){ML.ord=shuffle(ML.ord);ML.ptr=0}const i=ML.ord[ML.ptr++],p=M.forward(sampleOf(ML.train,i)),y=ML.train.Y[i];loss+=-Math.log(p[y]+1e-7);if(argmax(p)===y)corr++;M.backward(y)}
+    M.step(32);ML.traj.push(M.Wc.slice());batchN++;if(!api.alive())return;renderK();
+    const bl=$("#bl",box);if(bl)bl.innerHTML=`방금 배치 손실 <b>${f4(loss/32)}</b><br>맞힌 수 <b>${corr}/32</b>`;lock(false)};
+  run.addEventListener("click",async()=>{
+    if(busy)return;lock(true);$("#sum",box).innerHTML="";api.setGo("학습 중 ...",false);ref=ML.model.Wc.slice();
+    const log=$("#log",box),chart=$("#chart",box),lines=[],rl=()=>{log.innerHTML=lines.join("\n");log.scrollTop=log.scrollHeight};log.hidden=false;$("#cb",box).hidden=false;
+    let hist=[],curE=-1,lastDraw=0;
+    try{hist=await fit(ML.model,ML.train,E,{alive:api.alive,onStep:()=>ML.traj.push(ML.model.Wc.slice()),
+      onBatch:(e,s,n,l,a)=>{if(e!==curE){curE=e;lines.push(`Epoch ${e+1}/${E}`,"")}lines[lines.length-1]=`${s}/${n} ${kbar(s,n)} - loss: ${f4(l)} - accuracy: <b>${f4(a)}</b>`;rl();
+        if(performance.now()-lastDraw>250){lastDraw=performance.now();renderK()}},
+      onEpoch:(e,h)=>{hist=h;drawChart(chart,h,E)}})}catch(err){return}
+    if(!api.alive())return;
+    S.epochs=E;save();ML.trainAcc=hist[hist.length-1].acc;renderK();lock(false);
+    const a=hist[0],zz=hist[hist.length-1],ok=zz.acc>=0.9;
+    $("#sum",box).innerHTML=`<div class="explain ${ok?"":"warn"}"><b>${ok?"학습 완료!":"조금 더 학습해 볼까요?"}</b> loss ${f4(a.loss)} → ${f4(zz.loss)}, accuracy ${f4(a.acc)} → ${f4(zz.acc)}<br>${ok?`가중치를 ${ML.traj.length-1}번 고쳤어요. 위의 ◀ ▶로 다른 커널도 살펴보고, 특징 맵이 처음과 어떻게 달라졌는지 비교해 보세요.`:"정확도가 0.9보다 낮아요. epochs를 늘려서 한 번 더 실행해 보세요. (이어서 학습돼요)"}</div>`;
+    if(ok)api.done();else api.setGo("정확도 0.9 이상이면 통과",false);
+  });
+  api.setGo("학습을 실행해 주세요",false);
+  lock(true);$("#ks",box).innerHTML="<span>연습 데이터 준비 중 ...</span>";
+  ensureData(p=>{const s=$("#ks",box);if(s&&api.alive())s.innerHTML=`<span>연습 데이터 준비 중 ... ${Math.round(p*100)}%</span>`}).then(()=>{
+    if(!api.alive())return;
+    if(!ML.model||ML.model.cfg.K!==c.K||ML.model.cfg.k!==c.k||ML.model.cfg.s!==c.s||!ML.traj.length)newModel();
+    lock(false);renderK()});
+}
+function drawChart(cv,hist,E){
+  const {x,w,h}=fitCanvas(cv,190);x.clearRect(0,0,w,h);
+  const L=36,R=12,T=12,B=26,pw=w-L-R,ph=h-T-B;
+  const ymax=Math.max(1,...hist.map(d=>d.loss));
+  const mut=cssv("--muted"),ln=cssv("--line"),ac=cssv("--accent"),ok=cssv("--ok");
+  x.font=`11px ${cssv("--f-mono")}`;x.fillStyle=mut;x.strokeStyle=ln;x.lineWidth=1;
+  for(let k=0;k<=4;k++){const v=ymax*k/4,y=T+ph-ph*k/4;x.beginPath();x.moveTo(L,y);x.lineTo(L+pw,y);x.stroke();x.textAlign="right";x.fillText(v.toFixed(2),L-5,y+4)}
+  const xs=e=>L+(E<=1?pw/2:pw*e/(E-1));
+  x.textAlign="center";for(let e=0;e<E;e++)x.fillText(String(e+1),xs(e),h-8);
+  const line=(key,col)=>{x.strokeStyle=col;x.fillStyle=col;x.lineWidth=2.5;x.beginPath();hist.forEach((d,e)=>{const y=T+ph-ph*d[key]/ymax;e?x.lineTo(xs(e),y):x.moveTo(xs(e),y)});x.stroke();
+    hist.forEach((d,e)=>{x.beginPath();x.arc(xs(e),T+ph-ph*d[key]/ymax,e===hist.length-1?4.5:3,0,7);x.fill()})};
+  line("loss",ac);line("acc",ok);
+}
+function needModel(box,api,then){
+  if(ML.model&&ML.trainAcc!=null)return then();
+  const c=S.cfg;
+  box.insertAdjacentHTML("beforeend",`<div class="card stage" id="nm" style="padding:14px"><p style="margin:0">아직 학습된 모델이 없어요. (페이지를 새로 열면 모델이 사라져요.) 레벨 3에서 정한 합성곱 신경망을 빠르게 학습시켜 주세요.</p>
+   <div class="cfg"><span>Conv2D(${c.K}, (${c.k}, ${c.k}), strides=(${c.s}, ${c.s}))</span></div>
+   <button class="btn run" id="qt">model.fit(X_train, y_train, epochs=2)</button><pre class="log" id="qlog" hidden></pre></div>`);
+  $("#qt",box).addEventListener("click",async e=>{
+    e.currentTarget.disabled=true;const log=$("#qlog",box),lines=["연습 데이터 준비 중 ..."],rl=()=>{log.innerHTML=lines.join("\n")};log.hidden=false;rl();
+    await ensureData(p=>{lines[0]=`연습 데이터 준비 중 ... ${Math.round(p*100)}%`;rl()});if(!api.alive())return;
+    lines.length=0;const M=new CNN(c),tr=[M.Wc.slice()];let curE=-1,hist;
+    try{hist=await fit(M,ML.train,2,{alive:api.alive,onStep:()=>tr.push(M.Wc.slice()),onBatch:(ep,s,n,l,a)=>{if(ep!==curE){curE=ep;lines.push(`Epoch ${ep+1}/2`,"")}lines[lines.length-1]=`${s}/${n} ${kbar(s,n)} - loss: ${f4(l)} - accuracy: <b>${f4(a)}</b>`;rl()}})}catch(err){return}
+    if(!api.alive())return;ML.model=M;ML.traj=tr;ML.ord=shuffle([...Array(N_TRAIN).keys()]);ML.ptr=0;ML.trainAcc=hist[hist.length-1].acc;$("#nm",box).remove();then()});
+}
+function mountEval(box,api){
+  box.innerHTML=`<h2 class="q">처음 보는 데이터로 시험 봐요</h2><p class="lead">학습에 쓰지 않은 테스트 데이터로 합성곱 신경망의 성능을 평가해요.</p><div id="w" class="stage" style="padding:0"></div>`;
+  const w=$("#w",box);
+  needModel(w,api,()=>{
+    w.innerHTML=`<button class="btn run" id="ev">model.evaluate(X_test, y_test)</button><pre class="log" id="lg" hidden></pre><div id="cmp"></div>`;
+    api.setGo("실행 버튼을 눌러 평가하세요",false);
+    $("#ev",w).addEventListener("click",async e=>{
+      e.currentTarget.disabled=true;const lg=$("#lg",w);lg.hidden=false;const n=Math.ceil(N_TEST/32);
+      for(let s=1;s<=n;s+=3){lg.textContent=`${s}/${n} ${kbar(s,n)}`;await new Promise(r=>setTimeout(r,25))}
+      const r=evaluate(ML.model,ML.test);if(!api.alive())return;
+      S.best=Math.max(S.best||0,r.acc);save();
+      lg.innerHTML=`${n}/${n} ${kbar(n,n)} - loss: ${f4(r.loss)} - accuracy: <b>${f4(r.acc)}</b>\n[${r.loss.toPrecision(15)}, ${r.acc.toPrecision(15)}]`;
+      $("#cmp",w).innerHTML=`<div class="card tablebox"><table class="t"><thead><tr><th></th><th class="n">정확도</th></tr></thead><tbody>
+        <tr><td>훈련 데이터 (마지막 epoch)</td><td class="n">${f4(ML.trainAcc)}</td></tr><tr><td>테스트 데이터 (처음 보는 데이터)</td><td class="n">${f4(r.acc)}</td></tr></tbody></table></div>
+        <p class="note">테스트 정확도는 훈련 정확도보다 조금 낮은 경우가 많아요. 모델이 처음 보는 숫자들이기 때문이에요.</p>`;
+      api.done();
+    });
+  });
+}
+function mountPredict(box,api){
+  box.innerHTML=`<h2 class="q">predict 결과에서 예측 숫자 찾기</h2><p class="lead">출력층 10개 노드의 확률값이 0번부터 9번까지 차례로 나와요. 가장 큰 값은 몇 번 인덱스일까요?</p><div id="w" class="stage" style="padding:0"></div>`;
+  const w=$("#w",box);
+  needModel(w,api,()=>{
+    const picks=[0];while(picks.length<3){const k=1+Math.floor(Math.random()*(N_TEST-1));if(!picks.includes(k))picks.push(k)}
+    let r=0;
+    const show=()=>{
+      const i=picks[r],p=ML.model.predict(sampleOf(ML.test,i)),am=argmax(p),y=ML.test.Y[i];
+      w.innerHTML=`<p class="stepno">문제 ${r+1} / 3</p>
+       <div class="predrow"><canvas id="im"></canvas><div><code>X_test[${i}]</code><p class="note">정답 레이블은 맞힌 다음에 알려 줄게요.</p></div></div>
+       <pre class="code">pred[${i}]
+array([${Array.from(p).map(pyExp).join(", ")}], dtype=float32)</pre>
+       <p style="margin:0;font-weight:700">가장 큰 값의 인덱스 (np.argmax)는?</p>
+       <div class="digits">${[...Array(10).keys()].map(d=>`<button data-d="${d}">${d}</button>`).join("")}</div><div id="fb"></div>`;
+      drawDigit($("#im",w),sampleOf(ML.test,i),4);
+      let ok=false;
+      $$(".digits button",w).forEach(b=>b.addEventListener("click",()=>{
+        if(ok)return;const d=+b.dataset.d;
+        if(d===am){ok=true;b.classList.add("right");
+          $("#fb",w).innerHTML=`<div class="explain"><b>정답!</b> ${am}번 값이 ${pyExp(p[am])}로 가장 커서 모델은 <b>${am}</b>(으)로 예측해요. 실제 정답(y_test[${i}])은 ${y}${y===am?"이라 모델이 맞혔어요.":"이에요. 모델이 틀렸네요!"}</div>`;
+          if(r<2)api.setGo("다음 문제",true,()=>{r++;show();api.setGo("인덱스를 골라 주세요",false)});else api.done()}
+        else{b.classList.add("wrong");mistake();$("#fb",w).innerHTML=`<div class="explain warn"><b>다시!</b> e-01은 ×1/10, e-12는 ×1/10¹²이에요. 지수(e 뒤의 숫자)가 0에 가장 가까운 값을 찾아보세요.</div>`}
+      }));
+    };
+    show();api.setGo("인덱스를 골라 주세요",false);
+  });
+}
+function mountDraw(box,api){
+  box.innerHTML=`<h2 class="q">내가 쓴 숫자를 분류해 봐요</h2><p class="lead">검은 칸에 숫자 하나를 크게 쓰고 '예측하기'를 누르세요. 합성곱 층이 만든 특징 맵도 함께 보여 줘요. 숫자 3개를 시험해 보면 통과예요.</p><div id="w" class="stage" style="padding:0"></div>`;
+  const w=$("#w",box);
+  needModel(w,api,()=>{
+    let tries=0,hits=0;
+    w.innerHTML=`<div class="padwrap"><canvas class="pad" id="pad" width="280" height="280" aria-label="숫자를 쓰는 칸"></canvas>
+      <div class="padbtns"><button class="btn ghost" id="clr">지우기</button><button class="btn primary" id="pr" style="box-shadow:none">예측하기</button></div></div>
+      <div id="res"></div><p class="note" id="cnt">시험한 숫자 0 / 3</p>`;
+    const pad=$("#pad",w),px=pad.getContext("2d",{willReadFrequently:true});
+    const clear=()=>{px.fillStyle="#000";px.fillRect(0,0,280,280)};clear();
+    let drawing=false,last=null,inked=false,judged=true;
+    const pt=e=>{const r=pad.getBoundingClientRect();return[(e.clientX-r.left)/r.width*280,(e.clientY-r.top)/r.height*280]};
+    pad.addEventListener("pointerdown",e=>{drawing=true;last=pt(e);pad.setPointerCapture(e.pointerId);px.fillStyle="#fff";px.beginPath();px.arc(last[0],last[1],11,0,7);px.fill();inked=true});
+    pad.addEventListener("pointermove",e=>{if(!drawing)return;const p=pt(e);px.strokeStyle="#fff";px.lineWidth=22;px.lineCap="round";px.lineJoin="round";px.beginPath();px.moveTo(last[0],last[1]);px.lineTo(p[0],p[1]);px.stroke();last=p});
+    const up=()=>{drawing=false};pad.addEventListener("pointerup",up);pad.addEventListener("pointercancel",up);
+    $("#clr",w).onclick=()=>{clear();inked=false;$("#res",w).innerHTML=""};
+    $("#pr",w).onclick=()=>{
+      if(!inked){$("#res",w).innerHTML=`<div class="explain warn"><b>먼저 숫자를 써 주세요.</b></div>`;return}
+      if(!judged){$("#res",w).querySelector(".verdict")?.scrollIntoView({block:"nearest",behavior:"smooth"});return}
+      const a=preprocess(pad);if(!a)return;const M=ML.model,p=M.predict(a),am=argmax(p);judged=false;const nK=Math.min(8,M.cfg.K);
+      $("#res",w).innerHTML=`<div class="card stage" style="padding:14px">
+        <div style="display:flex;gap:14px;align-items:center"><div class="big">${am}</div><div><b>AI의 예측: ${am}</b><br><span class="note">확률 ${(p[am]*100).toFixed(1)}%</span></div>
+        <div class="seen" style="margin-left:auto"><canvas id="seen"></canvas></div></div>
+        <p class="note">오른쪽 작은 그림이 모델이 실제로 본 28×28 숫자예요.</p>
+        <b>합성곱 층이 만든 특징 맵 (커널 1~${nK}번, relu 후)</b>
+        <div class="fmaps" id="dm">${Array.from({length:nK},(_,i)=>`<figure><canvas></canvas>${i+1}</figure>`).join("")}</div>
+        <div class="bars">${Array.from(p).map((v,d)=>`<div class="barrow ${d===am?"top":""}"><span>${d}</span><span class="tr"><i style="width:${(v*100).toFixed(1)}%"></i></span><span>${(v*100).toFixed(1)}%</span></div>`).join("")}</div>
+        <p style="margin:0;font-weight:700">AI가 맞혔나요?</p>
+        <div class="verdict"><button class="btn ghost" data-v="1">맞혔어요</button><button class="btn ghost" data-v="0">틀렸어요</button></div></div>`;
+      drawDigit($("#seen",w),a,2);
+      $$("#dm canvas",w).forEach((cv,i)=>{const {H,z}=M.map(a,i);drawMap(cv,relu(z),H,"gray")});
+      $$(".verdict button",w).forEach(b=>b.onclick=()=>{
+        if(judged)return;judged=true;tries++;if(b.dataset.v==="1")hits++;
+        $$(".verdict button",w).forEach(x=>x.disabled=true);b.style.borderColor="var(--accent)";
+        $("#cnt",w).textContent=`시험한 숫자 ${tries} / 3 · AI가 맞힌 숫자 ${hits}개`;
+        clear();inked=false;
+        if(tries>=3)api.done();
+      });
+    };
+  });
+}
+
+renderHome();
+loadFonts().then(()=>setTimeout(()=>ensureData(),600));
+</script>
