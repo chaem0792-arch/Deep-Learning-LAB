@@ -295,6 +295,23 @@ canvas.traj{width:100%;height:160px;background:var(--surface);border:1px solid v
 .arch span.p{background:var(--ok-soft);border-color:var(--ok)}
 .arch i{font-style:normal;color:var(--muted)}
 .codehead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+/* 전체 정답 보기 */
+.akcta{width:100%;margin-top:10px}
+.ak-intro{margin:14px 0 0}
+.ak-lv{margin-top:22px;display:grid;gap:12px}
+.ak-lv>h3{margin:0;font-size:17px;line-height:1.4}
+.ak-lv>h3 .eyebrow{display:block}
+.ak-q{display:grid;gap:10px}
+.ak-q>.q{font-size:17px;margin:0}
+.ak-no{justify-self:start;font-size:12px;font-weight:700;color:var(--muted)}
+.ak-q .opts{gap:6px}
+.ak-q .opt{cursor:default;pointer-events:none}
+.ak-q .opt.ak-x{opacity:.45}
+.ak-q .explain{margin:0}
+.ak-q .gq{margin:0}
+.ak-q .mc.ak-a{border-color:var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,var(--surface))}
+.ak-end{display:grid;gap:10px;margin-top:24px}
 </style>
 
 <div id="app"></div>
@@ -758,7 +775,7 @@ function renderHome(){
     <div class="me"><label for="nm">이름</label><input id="nm" maxlength="20" placeholder="이름을 적어 주세요" value="${esc(S.name)}" autocomplete="off"><span class="tot">★ ${tot} / ${MAXST()}</span></div>
     <button class="btn ghost codecta" id="code">전체 파이썬 코드 보기</button>
   </header>
-  ${allDone()?`<button class="btn primary certcta" id="cert">완주 카드 보기</button>`:""}
+  ${allDone()?`<button class="btn primary certcta" id="cert">완주 카드 보기</button><button class="btn ghost akcta" id="ak">전체 정답 보기</button>`:""}
   ${GROUPS.map(g=>`<section class="stage-g"><h3>${g.t} <small>${g.s}</small></h3>
     ${g.ids.map(id=>{const i=LEVELS.findIndex(L=>L.id===id),L=LEVELS[i],st=starsOf(id),open=unlocked(i);
       return `<button class="lv ${st?"done":open?"open":"locked"}" data-i="${i}" ${open?"":'aria-disabled="true"'}>
@@ -773,6 +790,7 @@ function renderHome(){
   $("#rst").addEventListener("click",askReset);
   $("#code").addEventListener("click",renderCode);
   const c=$("#cert");if(c)c.addEventListener("click",renderCert);
+  const ak=$("#ak");if(ak)ak.addEventListener("click",renderAnswers);
   window.scrollTo(0,0);
 }
 function askReset(){
@@ -920,6 +938,39 @@ function finishLevel(){
   $("#ovn").addEventListener("click",()=>{ov.remove();last?renderCert():openLevel(i+1)});
   $("#ovh").addEventListener("click",()=>{ov.remove();renderHome()});
 }
+/* ---------- 전체 정답 보기 (모든 레벨을 끝낸 뒤에만 열려요) ---------- */
+function akBody(st){
+  const ex=st.ex?`<div class="explain"><b>해설</b> ${st.ex}</div>`:"";
+  if(st.type==="mcq")return `${st.code?`<pre class="code">${esc(st.code)}</pre>`:""}<h4 class="q">${st.q}</h4>
+    <div class="opts">${st.opts.map((o,i)=>`<div class="opt ${i===st.a?"right":"ak-x"}">${o}</div>`).join("")}</div>${ex}`;
+  if(st.type==="fill"){const pairs=st.style==="pairs";
+    return `<h4 class="q">${st.q}</h4><div class="${pairs?"pairs":"code"}">${st.lines.map(l=>`<div class="ln">${l.replace(/\{\{(\d+)\}\}/g,(m,k)=>`<span class="blank right">${esc(st.ans[+k])}</span>`)}</div>`).join("")}</div>${ex}`}
+  if(st.type==="grid"){const P=st.make(),A=P.ans;
+    const cell=(p,v,i)=>`<span class="mc ${v<0?"neg":""} ${p.cls?p.cls(i):""}">${v}</span>`;
+    return `<h4 class="q">${st.q}</h4>${st.lead?`<p class="lead" style="margin:0">${st.lead}</p>`:""}
+      <p class="note" style="margin:0">숫자는 풀 때마다 새로 나와요. 아래는 예시 문제와 정답이에요.</p>
+      <div class="gq">${P.panels.map(p=>`<div class="gp"><span class="note">${p.label}</span><div class="mg" style="--c:${p.cols}">${p.vals.map((v,i)=>cell(p,v,i)).join("")}</div></div><span class="garr">${p.sep}</span>`).join("")}
+      <div class="gp"><span class="note">${A.label}</span><div class="mg" style="--c:${A.cols};--cs:${A.cols===1?"56px":"46px"}">${A.vals.map(v=>`<span class="mc ak-a">${v}</span>`).join("")}</div></div></div>
+      <div class="explain"><b>해설</b> ${P.ex}</div>`}
+  return "";
+}
+function renderAnswers(){
+  if(!allDone())return renderHome();
+  nav++;cur=null;
+  let no=0,skipped=0;
+  const secs=LEVELS.map(L=>{
+    const its=L.steps.map(s=>typeof s==="function"?s():s).filter(s=>{const q=["mcq","fill","grid"].includes(s.type);if(!q&&s.type!=="info")skipped++;return q});
+    if(!its.length)return "";
+    return `<section class="ak-lv"><h3><span class="eyebrow">LEVEL ${L.id} · ${L.stage}</span>${L.title}</h3>
+      ${its.map(st=>`<article class="card ak-q"><span class="ak-no">문제 ${++no}</span>${akBody(st)}</article>`).join("")}</section>`}).join("");
+  app.innerHTML=`
+  <div class="lvhead"><button class="back" id="back" aria-label="레벨 지도로 돌아가기">←</button><div class="lvt"><span class="eyebrow">모든 레벨 완료</span><b>전체 정답 보기</b></div><span></span></div>
+  <p class="lead ak-intro">퀴즈 ${no}문제의 정답과 해설이에요. 초록색으로 표시된 것이 정답이에요.${skipped?" 직접 실행하거나 계산해 보는 실습 활동은 결과가 그때그때 달라서 이 목록에서 빠졌어요.":""}</p>
+  ${secs}
+  <div class="ak-end"><button class="btn primary" id="akc">완주 카드 보기</button><button class="btn ghost" id="akh">레벨 지도로</button></div>`;
+  $("#back").addEventListener("click",renderHome);$("#akh").addEventListener("click",renderHome);$("#akc").addEventListener("click",renderCert);
+  window.scrollTo(0,0);
+}
 function renderCert(){
   nav++;
   const tot=totStars(),d=new Date(),c=S.cfg;
@@ -935,9 +986,11 @@ function renderCert(){
     <div class="grid">${LEVELS.map(L=>`<div>LV ${L.id}<b style="color:var(--star)">${L.intro?(starsOf(L.id)?"✓":"–"):("★".repeat(starsOf(L.id))||"–")}</b></div>`).join("")}</div>
     <p class="note">${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}.</p>
   </div>
-  <p class="note" style="margin-top:14px;text-align:center">이 화면을 선생님께 보여 주세요.</p>`;
+  <p class="note" style="margin-top:14px;text-align:center">이 화면을 선생님께 보여 주세요.</p>
+  <button class="btn ghost akcta" id="akb">전체 정답 보기</button>`;
   $("#back").addEventListener("click",renderHome);
   $("#nm2").addEventListener("input",e=>{S.name=e.target.value.trim();save()});
+  $("#akb").addEventListener("click",renderAnswers);
   window.scrollTo(0,0);
 }
 
