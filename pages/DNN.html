@@ -241,6 +241,11 @@ canvas.pad{width:100%;max-width:300px;aspect-ratio:1;border-radius:14px;backgrou
 .ak-q .gq{margin:0}
 .ak-q .mc.ak-a{border-color:var(--ok);color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,var(--surface))}
 .ak-end{display:grid;gap:10px;margin-top:24px}
+
+/* 완주 후 넘기기 */
+.act .in.sk{display:flex;gap:8px}
+.act .in.sk #go{flex:1;min-width:0}
+.skipbtn{flex:none;padding-inline:16px;color:var(--muted)}
 </style>
 
 <div id="app"></div>
@@ -597,8 +602,9 @@ function openLevel(i){
     <span class="miss" id="miss" ${cur.L.intro?"hidden":""}>실수 0</span></div>
   <div class="bar"><i id="bar"></i></div>
   <main class="stage" id="stage"></main>
-  <footer class="act"><div class="in"><button class="btn primary" id="go">다음</button></div></footer>`;
+  <footer class="act"><div class="in${allDone()?" sk":""}"><button class="btn primary" id="go">다음</button>${allDone()?`<button class="btn ghost skipbtn" id="skip" aria-label="이 문제 넘기기">넘기기 ›</button>`:""}</div></footer>`;
   $("#back").addEventListener("click",renderHome);
+  const sk=$("#skip");if(sk)sk.addEventListener("click",()=>{if(cur)nextStep()});
   renderStep();
 }
 function setGo(label,enabled,fn){const g=$("#go");if(!g)return;g.textContent=label;g.disabled=!enabled;g.onclick=fn||null}
