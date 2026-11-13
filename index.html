@@ -86,10 +86,6 @@ const PAGES = [
     title:"고양이 이미지 합성곱 체험",
     desc:"고양이 사진으로 합성곱 신경망이 이미지를 어떻게 보고 분류하는지 체험해요.",
     url:"https://chaem0792-arch.github.io/Deep-Learning-LAB/pages/cat.html" },
-  { tag:"실습 4", icon:"🎙️", color:"var(--c4)",
-    title:"음성 인식 모델 구현하기",
-    desc:"음성을 인식하고, 텍스트로 변환하는 모델을 만들어요.",
-    url:"" },
 ];
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 document.getElementById("list").innerHTML = PAGES.map(p=>{
